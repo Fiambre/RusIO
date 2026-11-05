@@ -70,10 +70,7 @@ impl Registry {
 
     /// Protocols that can be started from the title bar's quick-connect box.
     pub fn quick_connect_entries(&self) -> Vec<&Entry> {
-        self.entries
-            .iter()
-            .filter(|e| e.def.quick_connect.is_some())
-            .collect()
+        self.entries.iter().filter(|e| e.def.quick_connect.is_some()).collect()
     }
 }
 
@@ -110,7 +107,10 @@ mod tests {
         // These tags name entries already stored in users' credential managers.
         let schema = registry.secret_schema();
         let tags = |kind: &str| -> Vec<&'static str> {
-            schema.get(kind).map(|f| f.iter().map(|s| s.tag).collect()).unwrap_or_default()
+            schema
+                .get(kind)
+                .map(|f| f.iter().map(|s| s.tag).collect())
+                .unwrap_or_default()
         };
         assert_eq!(tags("Ssh"), ["ssh-password", "key-passphrase"]);
         assert_eq!(tags("Vnc"), ["vnc-password"]);

@@ -1,4 +1,4 @@
-use eframe::egui::{self, Rect, RichText, CornerRadius, Sense, Vec2};
+use eframe::egui::{self, CornerRadius, Rect, RichText, Sense, Vec2};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -20,16 +20,9 @@ pub enum SidebarAction {
     DeleteFolder(Uuid),
 }
 
+#[derive(Default)]
 pub struct SidebarState {
     pub search_query: String,
-}
-
-impl Default for SidebarState {
-    fn default() -> Self {
-        Self {
-            search_query: String::new(),
-        }
-    }
 }
 
 fn summary_of(registry: &Registry, profile: &ConnectionProfile) -> String {
@@ -49,9 +42,7 @@ struct Out {
 }
 
 fn matches_query(registry: &Registry, c: &ConnectionProfile, query: &str) -> bool {
-    query.is_empty()
-        || c.name.to_lowercase().contains(query)
-        || summary_of(registry, c).to_lowercase().contains(query)
+    query.is_empty() || c.name.to_lowercase().contains(query) || summary_of(registry, c).to_lowercase().contains(query)
 }
 
 pub fn render_sidebar(
@@ -67,12 +58,7 @@ pub fn render_sidebar(
         // Bottom Fast Launcher Toolbar
         ui.add_space(10.0);
         ui.horizontal(|ui| {
-            ui.label(
-                RichText::new("CONEXIONES")
-                    .size(11.0)
-                    .strong()
-                    .color(theme.text_muted),
-            );
+            ui.label(RichText::new("CONEXIONES").size(11.0).strong().color(theme.text_muted));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if icons::icon_button(ui, Icon::FolderPlus, None, "Nueva carpeta") {
                     out.action = Some(SidebarAction::CreateNewFolder);
@@ -96,11 +82,7 @@ pub fn render_sidebar(
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 let query = state.search_query.to_lowercase();
-                let names: HashMap<Uuid, String> = config
-                    .connections
-                    .iter()
-                    .map(|c| (c.id, c.name.clone()))
-                    .collect();
+                let names: HashMap<Uuid, String> = config.connections.iter().map(|c| (c.id, c.name.clone())).collect();
 
                 for folder_idx in 0..config.folders.len() {
                     let folder_id = config.folders[folder_idx].id;
@@ -212,11 +194,7 @@ fn render_folder(
         if is_expanded {
             ui.indent(folder_id, |ui| {
                 if conns.is_empty() {
-                    ui.label(
-                        RichText::new("(Carpeta vacía)")
-                            .size(11.0)
-                            .color(theme.text_muted),
-                    );
+                    ui.label(RichText::new("(Carpeta vacía)").size(11.0).color(theme.text_muted));
                 }
                 for profile in conns {
                     if let Some(a) = render_connection_item(
@@ -302,14 +280,7 @@ fn render_connection_item(
                         )
                         .truncate(),
                     );
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(&summary)
-                                .size(10.0)
-                                .color(theme.text_secondary),
-                        )
-                        .truncate(),
-                    );
+                    ui.add(egui::Label::new(RichText::new(&summary).size(10.0).color(theme.text_secondary)).truncate());
                 });
             });
 

@@ -9,8 +9,8 @@ use rusio_plugin_api::serde_json;
 use rusio_plugin_api::sql::SqlConsole;
 use rusio_plugin_api::theme::Theme;
 use rusio_plugin_api::{
-    setting_i64, Category, ConnectRequest, Connected, Endpoint, Params, Plugin, ProtocolDef, ProtocolIcon,
-    SecretField, SettingField, SettingKind, WelcomeCard,
+    setting_i64, Category, ConnectRequest, Connected, Endpoint, Params, Plugin, ProtocolDef, ProtocolIcon, SecretField,
+    SettingField, SettingKind, WelcomeCard,
 };
 use serde::{Deserialize, Serialize};
 
@@ -54,12 +54,11 @@ impl Default for MongoParams {
 
 impl MongoParams {
     fn from_value(v: &Params) -> Result<Self, String> {
-        let mut p: MongoParams =
-            serde_json::from_value(v.clone()).map_err(|e| format!("parámetros inválidos: {e}"))?;
+        let mut p: MongoParams = serde_json::from_value(v.clone()).map_err(|e| format!("parámetros inválidos: {e}"))?;
         if p.password.as_deref() == Some("") {
             p.password = None;
         }
-        if p.uri.as_deref().map_or(false, |u| u.trim().is_empty()) {
+        if p.uri.as_deref().is_some_and(|u| u.trim().is_empty()) {
             p.uri = None;
         }
         Ok(p)
@@ -72,7 +71,10 @@ impl MongoParams {
 
 /// Only plain host/port connections can be pointed at a tunnel.
 fn endpoint_get(params: &Params) -> Option<(String, u16)> {
-    MongoParams::from_value(params).ok().filter(|p| p.uri.is_none()).map(|p| (p.host, p.port))
+    MongoParams::from_value(params)
+        .ok()
+        .filter(|p| p.uri.is_none())
+        .map(|p| (p.host, p.port))
 }
 
 fn endpoint_set(params: &Params, host: &str, port: u16) -> Params {
@@ -96,8 +98,14 @@ impl Plugin for MongoPlugin {
             badge: "MG",
             color: BADGE_COLOR,
             secrets: vec![
-                SecretField { tag: "mongo-password", pointer: "/password" },
-                SecretField { tag: "mongo-uri", pointer: "/uri" },
+                SecretField {
+                    tag: "mongo-password",
+                    pointer: "/password",
+                },
+                SecretField {
+                    tag: "mongo-uri",
+                    pointer: "/uri",
+                },
             ],
             quick_connect: None,
             actions: vec![],
@@ -108,7 +116,10 @@ impl Plugin for MongoPlugin {
             category: Category::Database,
             icon: ProtocolIcon::Logo(include_bytes!("../assets/mongodb.svg")),
             gateway: false,
-            endpoint: Some(Endpoint { get: endpoint_get, set: endpoint_set }),
+            endpoint: Some(Endpoint {
+                get: endpoint_get,
+                set: endpoint_set,
+            }),
         }
     }
 
@@ -122,8 +133,16 @@ impl Plugin for MongoPlugin {
                 if p.uri.is_some() {
                     return "cadena de conexión".to_string();
                 }
-                let user = if p.user.is_empty() { String::new() } else { format!("{}@", p.user) };
-                let db = if p.database.is_empty() { String::new() } else { format!("/{}", p.database) };
+                let user = if p.user.is_empty() {
+                    String::new()
+                } else {
+                    format!("{}@", p.user)
+                };
+                let db = if p.database.is_empty() {
+                    String::new()
+                } else {
+                    format!("/{}", p.database)
+                };
                 format!("{user}{}:{}{db}", p.host, p.port)
             })
             .unwrap_or_default()
@@ -138,12 +157,18 @@ impl Plugin for MongoPlugin {
             ui.label("Cadena de conexión (opcional):");
             ui.add(egui::TextEdit::singleline(&mut uri).password(true).desired_width(260.0));
         });
-        p.uri = if uri.trim().is_empty() { None } else { Some(uri.trim().to_string()) };
+        p.uri = if uri.trim().is_empty() {
+            None
+        } else {
+            Some(uri.trim().to_string())
+        };
         let using_uri = p.uri.is_some();
         ui.label(
-            RichText::new("Si la rellenas, reemplaza servidor, puerto, usuario, contraseña y TLS (y no admite túnel SSH).")
-                .size(11.0)
-                .color(theme.text_muted),
+            RichText::new(
+                "Si la rellenas, reemplaza servidor, puerto, usuario, contraseña y TLS (y no admite túnel SSH).",
+            )
+            .size(11.0)
+            .color(theme.text_muted),
         );
         ui.add_space(4.0);
 
@@ -153,7 +178,10 @@ impl Plugin for MongoPlugin {
                 ui.text_edit_singleline(&mut p.host);
                 ui.label("Puerto:");
                 let mut port = p.port.to_string();
-                if ui.add(egui::TextEdit::singleline(&mut port).desired_width(60.0)).changed() {
+                if ui
+                    .add(egui::TextEdit::singleline(&mut port).desired_width(60.0))
+                    .changed()
+                {
                     if let Ok(v) = port.parse::<u16>() {
                         p.port = v;
                     }

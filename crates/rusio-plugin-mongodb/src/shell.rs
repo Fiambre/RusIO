@@ -15,13 +15,38 @@ pub enum Op {
         limit: Option<i64>,
         skip: Option<u64>,
     },
-    Aggregate { coll: String, pipeline: Vec<Document> },
-    Count { coll: String, filter: Option<Document> },
-    Distinct { coll: String, field: String, filter: Option<Document> },
-    InsertOne { coll: String, doc: Document },
-    InsertMany { coll: String, docs: Vec<Document> },
-    Update { coll: String, filter: Document, update: Document, many: bool },
-    Delete { coll: String, filter: Document, many: bool },
+    Aggregate {
+        coll: String,
+        pipeline: Vec<Document>,
+    },
+    Count {
+        coll: String,
+        filter: Option<Document>,
+    },
+    Distinct {
+        coll: String,
+        field: String,
+        filter: Option<Document>,
+    },
+    InsertOne {
+        coll: String,
+        doc: Document,
+    },
+    InsertMany {
+        coll: String,
+        docs: Vec<Document>,
+    },
+    Update {
+        coll: String,
+        filter: Document,
+        update: Document,
+        many: bool,
+    },
+    Delete {
+        coll: String,
+        filter: Document,
+        many: bool,
+    },
     Command(Document),
 }
 
@@ -50,7 +75,10 @@ pub fn destructive(op: &Op) -> Vec<String> {
         }
         Op::Command(cmd) => {
             if let Some(first) = cmd.keys().next() {
-                if matches!(first.as_str(), "drop" | "dropDatabase" | "dropIndexes" | "delete" | "renameCollection") {
+                if matches!(
+                    first.as_str(),
+                    "drop" | "dropDatabase" | "dropIndexes" | "delete" | "renameCollection"
+                ) {
                     r.push(format!("el comando «{first}» elimina o renombra datos"));
                 }
             }
@@ -62,13 +90,66 @@ pub fn destructive(op: &Op) -> Vec<String> {
 
 /// Names offered by the editor: shell methods, helpers and the most used operators.
 pub const WORDS: &[&str] = &[
-    "db", "find", "findOne", "aggregate", "countDocuments", "estimatedDocumentCount", "distinct",
-    "insertOne", "insertMany", "updateOne", "updateMany", "deleteOne", "deleteMany", "runCommand",
-    "getCollection", "sort", "limit", "skip", "ObjectId", "ISODate", "NumberLong", "NumberInt",
-    "$set", "$unset", "$inc", "$push", "$pull", "$addToSet", "$match", "$group", "$project",
-    "$sort", "$limit", "$skip", "$lookup", "$unwind", "$count", "$sum", "$avg", "$min", "$max",
-    "$first", "$last", "$eq", "$ne", "$gt", "$gte", "$lt", "$lte", "$in", "$nin", "$and", "$or",
-    "$not", "$exists", "$regex", "$expr", "true", "false", "null",
+    "db",
+    "find",
+    "findOne",
+    "aggregate",
+    "countDocuments",
+    "estimatedDocumentCount",
+    "distinct",
+    "insertOne",
+    "insertMany",
+    "updateOne",
+    "updateMany",
+    "deleteOne",
+    "deleteMany",
+    "runCommand",
+    "getCollection",
+    "sort",
+    "limit",
+    "skip",
+    "ObjectId",
+    "ISODate",
+    "NumberLong",
+    "NumberInt",
+    "$set",
+    "$unset",
+    "$inc",
+    "$push",
+    "$pull",
+    "$addToSet",
+    "$match",
+    "$group",
+    "$project",
+    "$sort",
+    "$limit",
+    "$skip",
+    "$lookup",
+    "$unwind",
+    "$count",
+    "$sum",
+    "$avg",
+    "$min",
+    "$max",
+    "$first",
+    "$last",
+    "$eq",
+    "$ne",
+    "$gt",
+    "$gte",
+    "$lt",
+    "$lte",
+    "$in",
+    "$nin",
+    "$and",
+    "$or",
+    "$not",
+    "$exists",
+    "$regex",
+    "$expr",
+    "true",
+    "false",
+    "null",
 ];
 
 const SUPPORTED: &str = "find, findOne, aggregate, countDocuments, estimatedDocumentCount, distinct, insertOne, \
@@ -188,7 +269,8 @@ fn expand_helpers(s: &str) -> String {
 
 fn value(text: &str) -> Result<Bson, String> {
     let text = expand_helpers(text.trim());
-    let v: serde_json::Value = json5::from_str(&text).map_err(|e| format!("JSON inválido en «{}»: {e}", text.trim()))?;
+    let v: serde_json::Value =
+        json5::from_str(&text).map_err(|e| format!("JSON inválido en «{}»: {e}", text.trim()))?;
     Bson::try_from(v).map_err(|e| format!("valor no válido: {e}"))
 }
 
@@ -237,9 +319,14 @@ fn calls(mut rest: &str) -> Result<Vec<(String, String)>, String> {
             return Ok(out);
         }
         let Some(after_dot) = rest.strip_prefix('.') else {
-            return Err(format!("no entiendo «{}»; se esperaba .metodo(...)", rest.chars().take(20).collect::<String>()));
+            return Err(format!(
+                "no entiendo «{}»; se esperaba .metodo(...)",
+                rest.chars().take(20).collect::<String>()
+            ));
         };
-        let name_len = after_dot.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).unwrap_or(after_dot.len());
+        let name_len = after_dot
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .unwrap_or(after_dot.len());
         let name = &after_dot[..name_len];
         let after_name = &after_dot[name_len..];
         if name.is_empty() || !after_name.starts_with('(') {
@@ -276,7 +363,9 @@ pub fn parse(input: &str) -> Result<Op, String> {
                 let close = matching(&rest[end..], 0).ok_or("falta cerrar runCommand(")?;
                 Ok(Op::Command(doc(&rest[end + 1..end + close])?))
             } else {
-                Err(format!("db.{call}() no está soportado; usa db.coleccion.metodo(...) o un comando {{...}}."))
+                Err(format!(
+                    "db.{call}() no está soportado; usa db.coleccion.metodo(...) o un comando {{...}}."
+                ))
             };
         }
         (rest[..end].to_string(), &rest[end..])
@@ -302,27 +391,45 @@ pub fn parse(input: &str) -> Result<Op, String> {
                 skip: None,
             };
             for (name, a) in calls {
-                let Op::Find { sort, limit, skip, .. } = &mut op else { unreachable!() };
+                let Op::Find { sort, limit, skip, .. } = &mut op else {
+                    unreachable!()
+                };
                 match name.as_str() {
                     "sort" => *sort = Some(doc(&a)?),
                     "limit" => *limit = Some(int_arg(&a)?),
                     "skip" => *skip = Some(int_arg(&a)?.max(0) as u64),
                     "pretty" | "toArray" => {}
-                    other => return Err(format!(".{other}() no está soportado después de find (usa sort, limit o skip)")),
+                    other => {
+                        return Err(format!(
+                            ".{other}() no está soportado después de find (usa sort, limit o skip)"
+                        ))
+                    }
                 }
             }
             return Ok(op);
         }
-        "aggregate" => Op::Aggregate { coll, pipeline: docs(need(0, "un arreglo con las etapas")?)? },
-        "countDocuments" => Op::Count { coll, filter: arg(0).map(doc).transpose()? },
+        "aggregate" => Op::Aggregate {
+            coll,
+            pipeline: docs(need(0, "un arreglo con las etapas")?)?,
+        },
+        "countDocuments" => Op::Count {
+            coll,
+            filter: arg(0).map(doc).transpose()?,
+        },
         "estimatedDocumentCount" => Op::Count { coll, filter: None },
         "distinct" => Op::Distinct {
             coll,
             field: string_arg(need(0, "el nombre del campo")?)?,
             filter: arg(1).map(doc).transpose()?,
         },
-        "insertOne" => Op::InsertOne { coll, doc: doc(need(0, "un documento")?)? },
-        "insertMany" => Op::InsertMany { coll, docs: docs(need(0, "un arreglo de documentos")?)? },
+        "insertOne" => Op::InsertOne {
+            coll,
+            doc: doc(need(0, "un documento")?)?,
+        },
+        "insertMany" => Op::InsertMany {
+            coll,
+            docs: docs(need(0, "un arreglo de documentos")?)?,
+        },
         "updateOne" | "updateMany" => Op::Update {
             coll,
             filter: doc(need(0, "un filtro")?)?,
@@ -349,7 +456,8 @@ mod tests {
 
     #[test]
     fn find_with_unquoted_keys_and_chain() {
-        let op = parse("db.users.find({age: {$gt: 18}, name: 'Ana'}, {name: 1}).sort({age: -1}).limit(5).skip(2);").unwrap();
+        let op =
+            parse("db.users.find({age: {$gt: 18}, name: 'Ana'}, {name: 1}).sort({age: -1}).limit(5).skip(2);").unwrap();
         assert_eq!(
             op,
             Op::Find {
@@ -386,14 +494,20 @@ mod tests {
 
     #[test]
     fn helpers_inside_strings_are_left_alone() {
-        let Op::Find { filter, .. } = parse(r#"db.c.find({t: "ObjectId(1)"})"#).unwrap() else { panic!() };
+        let Op::Find { filter, .. } = parse(r#"db.c.find({t: "ObjectId(1)"})"#).unwrap() else {
+            panic!()
+        };
         assert_eq!(filter.get_str("t").unwrap(), "ObjectId(1)");
     }
 
     #[test]
     fn commas_and_parens_inside_strings_do_not_split_arguments() {
-        let Op::Update { filter, update, many, .. } =
-            parse(r#"db.c.updateMany({a: "x, (y)"}, {$set: {b: "), ("}})"#).unwrap() else { panic!() };
+        let Op::Update {
+            filter, update, many, ..
+        } = parse(r#"db.c.updateMany({a: "x, (y)"}, {$set: {b: "), ("}})"#).unwrap()
+        else {
+            panic!()
+        };
         assert!(many);
         assert_eq!(filter.get_str("a").unwrap(), "x, (y)");
         assert_eq!(update, doc! { "$set": { "b": "), (" } });
@@ -405,12 +519,17 @@ mod tests {
             parse("db.c.aggregate([{$match: {a: 1}}, {$group: {_id: '$b', n: {$sum: 1}}}])").unwrap(),
             Op::Aggregate { pipeline, .. } if pipeline.len() == 2
         ));
-        assert!(matches!(parse("db.c.countDocuments({a: 1})").unwrap(), Op::Count { filter: Some(_), .. }));
+        assert!(matches!(
+            parse("db.c.countDocuments({a: 1})").unwrap(),
+            Op::Count { filter: Some(_), .. }
+        ));
         assert!(matches!(parse("db.c.distinct('a')").unwrap(), Op::Distinct { field, .. } if field == "a"));
         assert!(parse("db.c.insertOne({a: 1})").unwrap().is_write());
         assert!(parse("db.c.deleteMany({})").unwrap().is_write());
         assert!(!parse("db.c.find()").unwrap().is_write());
-        assert!(matches!(parse("db.c.insertMany([{a: 1}, {a: 2}])").unwrap(), Op::InsertMany { docs, .. } if docs.len() == 2));
+        assert!(
+            matches!(parse("db.c.insertMany([{a: 1}, {a: 2}])").unwrap(), Op::InsertMany { docs, .. } if docs.len() == 2)
+        );
     }
 
     #[test]
@@ -432,17 +551,34 @@ mod tests {
 
     #[test]
     fn get_collection_and_commands() {
-        assert!(matches!(parse(r#"db.getCollection("mi-col").find()"#).unwrap(), Op::Find { coll, .. } if coll == "mi-col"));
+        assert!(
+            matches!(parse(r#"db.getCollection("mi-col").find()"#).unwrap(), Op::Find { coll, .. } if coll == "mi-col")
+        );
         assert_eq!(parse("{ping: 1}").unwrap(), Op::Command(doc! { "ping": 1 }));
-        assert_eq!(parse("db.runCommand({ping: 1})").unwrap(), Op::Command(doc! { "ping": 1 }));
+        assert_eq!(
+            parse("db.runCommand({ping: 1})").unwrap(),
+            Op::Command(doc! { "ping": 1 })
+        );
     }
 
     #[test]
     fn errors_are_explained_not_panicked() {
         for bad in [
-            "", "   ", "select 1", "db.", "db.c", "db.c.find(", "db.c.find({a: })", "db.c.find().foo()",
-            "db.c.nope()", "db.c.updateOne({a: 1})", "db.c.find([1])", "db.c.aggregate({})", "db.c.find({a:1}) extra",
-            "db.getCollectionNames()", "db.c.find({'a: 1})",
+            "",
+            "   ",
+            "select 1",
+            "db.",
+            "db.c",
+            "db.c.find(",
+            "db.c.find({a: })",
+            "db.c.find().foo()",
+            "db.c.nope()",
+            "db.c.updateOne({a: 1})",
+            "db.c.find([1])",
+            "db.c.aggregate({})",
+            "db.c.find({a:1}) extra",
+            "db.getCollectionNames()",
+            "db.c.find({'a: 1})",
         ] {
             let e = parse(bad).unwrap_err();
             assert!(!e.is_empty(), "{bad}");

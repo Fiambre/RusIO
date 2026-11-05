@@ -1,5 +1,5 @@
-use portable_pty::{CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use parking_lot::Mutex;
+use portable_pty::{CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

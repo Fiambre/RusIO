@@ -1,4 +1,4 @@
-use eframe::egui::{self, Color32, Pos2, Rect, CornerRadius, Sense, Stroke, Vec2};
+use eframe::egui::{self, Color32, CornerRadius, Pos2, Rect, Sense, Stroke, Vec2};
 
 use rusio_plugin_api::theme::Theme;
 
@@ -14,7 +14,11 @@ pub fn paint_logo(ui: &mut egui::Ui, size: f32) {
     let r = |x0: f32, y0: f32, x1: f32, y1: f32| Rect::from_min_max(at(x0, y0), at(x1, y1));
     let accent = Color32::from_rgb(34, 211, 238);
 
-    p.rect_filled(rect, CornerRadius::same((size * 0.225).round() as u8), theme.accent_primary);
+    p.rect_filled(
+        rect,
+        CornerRadius::same((size * 0.225).round() as u8),
+        theme.accent_primary,
+    );
     // stem
     p.rect_filled(r(0.27, 0.20, 0.40, 0.76), CornerRadius::ZERO, Color32::WHITE);
     // bowl: square on the left, round on the right
@@ -29,7 +33,11 @@ pub fn paint_logo(ui: &mut egui::Ui, size: f32) {
         Color32::WHITE,
     );
     // counter
-    p.rect_filled(r(0.40, 0.32, 0.55, 0.44), CornerRadius::same((size * 0.05).round() as u8), theme.accent_primary);
+    p.rect_filled(
+        r(0.40, 0.32, 0.55, 0.44),
+        CornerRadius::same((size * 0.05).round() as u8),
+        theme.accent_primary,
+    );
     // leg
     p.add(egui::Shape::convex_polygon(
         vec![at(0.43, 0.52), at(0.58, 0.52), at(0.75, 0.76), at(0.60, 0.76)],
@@ -56,7 +64,11 @@ fn window_button(ui: &mut egui::Ui, kind: WindowButton, maximized: bool) -> egui
         ui.painter().rect_filled(rect, CornerRadius::ZERO, fill);
     }
 
-    let color = if resp.hovered() { Color32::WHITE } else { theme.text_secondary };
+    let color = if resp.hovered() {
+        Color32::WHITE
+    } else {
+        theme.text_secondary
+    };
     let stroke = Stroke::new(1.2_f32, color);
     let c = rect.center();
     let p = ui.painter();
@@ -66,11 +78,21 @@ fn window_button(ui: &mut egui::Ui, kind: WindowButton, maximized: bool) -> egui
         }
         WindowButton::Maximize => {
             if maximized {
-                p.rect_stroke(Rect::from_center_size(c + Vec2::new(-1.0, 1.0), Vec2::splat(7.0)), CornerRadius::ZERO, stroke, egui::StrokeKind::Middle);
+                p.rect_stroke(
+                    Rect::from_center_size(c + Vec2::new(-1.0, 1.0), Vec2::splat(7.0)),
+                    CornerRadius::ZERO,
+                    stroke,
+                    egui::StrokeKind::Middle,
+                );
                 p.line_segment([c + Vec2::new(-2.0, -5.0), c + Vec2::new(5.0, -5.0)], stroke);
                 p.line_segment([c + Vec2::new(5.0, -5.0), c + Vec2::new(5.0, 2.0)], stroke);
             } else {
-                p.rect_stroke(Rect::from_center_size(c, Vec2::splat(9.0)), CornerRadius::ZERO, stroke, egui::StrokeKind::Middle);
+                p.rect_stroke(
+                    Rect::from_center_size(c, Vec2::splat(9.0)),
+                    CornerRadius::ZERO,
+                    stroke,
+                    egui::StrokeKind::Middle,
+                );
             }
         }
         WindowButton::Close => {
@@ -120,7 +142,9 @@ pub fn resize_edges(ctx: &egui::Context) {
     if ctx.input(|i| i.viewport().maximized.unwrap_or(false) || i.viewport().fullscreen.unwrap_or(false)) {
         return;
     }
-    let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) else { return };
+    let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) else {
+        return;
+    };
     let r = ctx.content_rect();
     let left = pos.x - r.left() < EDGE;
     let right = r.right() - pos.x < EDGE;

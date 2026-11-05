@@ -1,4 +1,4 @@
-use egui::{self, Color32, Pos2, Rect, CornerRadius, Sense, Shape, Stroke, Vec2};
+use egui::{self, Color32, CornerRadius, Pos2, Rect, Sense, Shape, Stroke, Vec2};
 
 use crate::theme::Theme;
 
@@ -99,7 +99,12 @@ pub fn paint_icon(ui: &egui::Ui, rect: Rect, icon: Icon, color: Color32) {
             p.line_segment([v(-5.5, 6.0), v(5.5, 6.0)], st);
         }
         Icon::UploadFolder => {
-            p.rect_stroke(Rect::from_min_max(v(-6.5, -3.5), v(6.5, 6.0)), CornerRadius::same(2), st, egui::StrokeKind::Middle);
+            p.rect_stroke(
+                Rect::from_min_max(v(-6.5, -3.5), v(6.5, 6.0)),
+                CornerRadius::same(2),
+                st,
+                egui::StrokeKind::Middle,
+            );
             p.line_segment([v(-6.5, -3.5), v(-6.5, -5.5)], st);
             p.line_segment([v(-6.5, -5.5), v(-2.5, -5.5)], st);
             p.line_segment([v(-2.5, -5.5), v(-1.0, -3.5)], st);
@@ -108,7 +113,12 @@ pub fn paint_icon(ui: &egui::Ui, rect: Rect, icon: Icon, color: Color32) {
             p.line_segment([v(2.5, 1.5), v(0.0, -1.0)], st);
         }
         Icon::FolderPlus => {
-            p.rect_stroke(Rect::from_min_max(v(-6.5, -3.5), v(6.5, 6.0)), CornerRadius::same(2), st, egui::StrokeKind::Middle);
+            p.rect_stroke(
+                Rect::from_min_max(v(-6.5, -3.5), v(6.5, 6.0)),
+                CornerRadius::same(2),
+                st,
+                egui::StrokeKind::Middle,
+            );
             p.line_segment([v(-6.5, -3.5), v(-6.5, -5.5)], st);
             p.line_segment([v(-6.5, -5.5), v(-2.5, -5.5)], st);
             p.line_segment([v(-2.5, -5.5), v(-1.0, -3.5)], st);
@@ -116,7 +126,12 @@ pub fn paint_icon(ui: &egui::Ui, rect: Rect, icon: Icon, color: Color32) {
             p.line_segment([v(0.0, -1.0), v(0.0, 4.0)], st);
         }
         Icon::FilePlus => {
-            p.rect_stroke(Rect::from_min_max(v(-4.5, -6.0), v(4.5, 6.0)), CornerRadius::same(2), st, egui::StrokeKind::Middle);
+            p.rect_stroke(
+                Rect::from_min_max(v(-4.5, -6.0), v(4.5, 6.0)),
+                CornerRadius::same(2),
+                st,
+                egui::StrokeKind::Middle,
+            );
             p.line_segment([v(-2.0, 0.5), v(2.0, 0.5)], st);
             p.line_segment([v(0.0, -1.5), v(0.0, 2.5)], st);
         }
@@ -130,19 +145,34 @@ pub fn paint_icon(ui: &egui::Ui, rect: Rect, icon: Icon, color: Color32) {
             }
         }
         Icon::Terminal => {
-            p.rect_stroke(Rect::from_min_max(v(-7.0, -5.5), v(7.0, 5.5)), CornerRadius::same(2), st, egui::StrokeKind::Middle);
+            p.rect_stroke(
+                Rect::from_min_max(v(-7.0, -5.5), v(7.0, 5.5)),
+                CornerRadius::same(2),
+                st,
+                egui::StrokeKind::Middle,
+            );
             p.line_segment([v(-4.0, -2.0), v(-1.5, 0.0)], st);
             p.line_segment([v(-1.5, 0.0), v(-4.0, 2.0)], st);
             p.line_segment([v(0.5, 2.5), v(4.0, 2.5)], st);
         }
         Icon::Monitor => {
-            p.rect_stroke(Rect::from_min_max(v(-7.0, -6.0), v(7.0, 3.5)), CornerRadius::same(2), st, egui::StrokeKind::Middle);
+            p.rect_stroke(
+                Rect::from_min_max(v(-7.0, -6.0), v(7.0, 3.5)),
+                CornerRadius::same(2),
+                st,
+                egui::StrokeKind::Middle,
+            );
             p.line_segment([v(0.0, 3.5), v(0.0, 6.5)], st);
             p.line_segment([v(-3.5, 6.5), v(3.5, 6.5)], st);
         }
         Icon::Server => {
             for y in [-6.0_f32, 0.5] {
-                p.rect_stroke(Rect::from_min_max(v(-7.0, y), v(7.0, y + 5.5)), CornerRadius::same(2), st, egui::StrokeKind::Middle);
+                p.rect_stroke(
+                    Rect::from_min_max(v(-7.0, y), v(7.0, y + 5.5)),
+                    CornerRadius::same(2),
+                    st,
+                    egui::StrokeKind::Middle,
+                );
                 p.circle_filled(v(-4.0, y + 2.75), 0.9, color);
             }
         }
@@ -192,21 +222,48 @@ pub fn paint_icon(ui: &egui::Ui, rect: Rect, icon: Icon, color: Color32) {
         }
         Icon::Shield => {
             p.add(Shape::closed_line(
-                vec![v(0.0, -6.5), v(5.5, -4.0), v(5.0, 1.5), v(0.0, 6.5), v(-5.0, 1.5), v(-5.5, -4.0)],
+                vec![
+                    v(0.0, -6.5),
+                    v(5.5, -4.0),
+                    v(5.0, 1.5),
+                    v(0.0, 6.5),
+                    v(-5.0, 1.5),
+                    v(-5.5, -4.0),
+                ],
                 st,
             ));
             p.line_segment([v(-2.0, 0.0), v(-0.5, 2.0)], st);
             p.line_segment([v(-0.5, 2.0), v(2.5, -2.0)], st);
         }
         Icon::Format => {
-            for (y, x0, x1) in [(-5.0_f32, -6.0, 6.0), (-1.7, -3.0, 6.0), (1.7, -3.0, 3.0), (5.0, -6.0, 6.0)] {
+            for (y, x0, x1) in [
+                (-5.0_f32, -6.0, 6.0),
+                (-1.7, -3.0, 6.0),
+                (1.7, -3.0, 3.0),
+                (5.0, -6.0, 6.0),
+            ] {
                 p.line_segment([v(x0, y), v(x1, y)], st);
             }
         }
         Icon::Save => {
-            p.rect_stroke(Rect::from_min_max(v(-5.5, -5.5), v(5.5, 5.5)), CornerRadius::same(2), st, egui::StrokeKind::Middle);
-            p.rect_stroke(Rect::from_min_max(v(-3.0, -5.5), v(3.0, -2.0)), CornerRadius::ZERO, st, egui::StrokeKind::Middle);
-            p.rect_stroke(Rect::from_min_max(v(-3.0, 1.0), v(3.0, 5.5)), CornerRadius::ZERO, st, egui::StrokeKind::Middle);
+            p.rect_stroke(
+                Rect::from_min_max(v(-5.5, -5.5), v(5.5, 5.5)),
+                CornerRadius::same(2),
+                st,
+                egui::StrokeKind::Middle,
+            );
+            p.rect_stroke(
+                Rect::from_min_max(v(-3.0, -5.5), v(3.0, -2.0)),
+                CornerRadius::ZERO,
+                st,
+                egui::StrokeKind::Middle,
+            );
+            p.rect_stroke(
+                Rect::from_min_max(v(-3.0, 1.0), v(3.0, 5.5)),
+                CornerRadius::ZERO,
+                st,
+                egui::StrokeKind::Middle,
+            );
         }
     }
 }
@@ -217,19 +274,12 @@ pub fn icon_button(ui: &mut egui::Ui, icon: Icon, color: Option<Color32>, tip: &
 }
 
 /// Same as `icon_button` with an explicit square size (toolbars use 26).
-pub fn icon_button_sized(
-    ui: &mut egui::Ui,
-    icon: Icon,
-    color: Option<Color32>,
-    tip: &str,
-    size: f32,
-) -> bool {
+pub fn icon_button_sized(ui: &mut egui::Ui, icon: Icon, color: Option<Color32>, tip: &str, size: f32) -> bool {
     let theme = Theme::default();
     let enabled = ui.is_enabled();
     let (rect, resp) = ui.allocate_exact_size(Vec2::splat(size), Sense::click());
     if enabled && resp.hovered() {
-        ui.painter()
-            .rect_filled(rect, CornerRadius::same(5), theme.bg_active);
+        ui.painter().rect_filled(rect, CornerRadius::same(5), theme.bg_active);
     }
     let col = if !enabled {
         theme.text_muted.gamma_multiply(0.5)

@@ -95,7 +95,10 @@ pub fn connect(opts: &ConnectOptions) -> Result<(Client, Canceller), String> {
     }
     if opts.statement_timeout_secs > 0 {
         client
-            .batch_execute(&format!("SET statement_timeout = {}", opts.statement_timeout_secs * 1000))
+            .batch_execute(&format!(
+                "SET statement_timeout = {}",
+                opts.statement_timeout_secs * 1000
+            ))
             .map_err(describe)?;
     }
     Ok((client, canceller))
@@ -214,7 +217,12 @@ pub fn run_sql(client: &mut Client, sql: &str, max_rows: usize) -> Result<QueryR
             } else {
                 format!("{n} filas")
             };
-            QueryResult { table: Some(table), truncated, elapsed_ms, message }
+            QueryResult {
+                table: Some(table),
+                truncated,
+                elapsed_ms,
+                message,
+            }
         }
         None => QueryResult {
             table: None,
@@ -237,11 +245,7 @@ pub fn load_schema(client: &mut Client) -> Result<Vec<SchemaTable>, String> {
         let mut out = Vec::new();
         for m in client.simple_query(sql).map_err(describe)? {
             if let SimpleQueryMessage::Row(r) = m {
-                out.push(
-                    (0..r.len())
-                        .map(|i| r.get(i).unwrap_or_default().to_string())
-                        .collect(),
-                );
+                out.push((0..r.len()).map(|i| r.get(i).unwrap_or_default().to_string()).collect());
             }
         }
         Ok(out)
@@ -312,7 +316,10 @@ pub fn databases_hint(client: &mut Client, current: &str, selector: bool) -> Opt
             "La base \"{current}\" no tiene tablas. Estas son las bases a las que puedes conectarte; \
              para usar otra, {how}:"
         ),
-        table: Some(DataTable { columns: vec!["base_de_datos".to_string()], rows }),
+        table: Some(DataTable {
+            columns: vec!["base_de_datos".to_string()],
+            rows,
+        }),
         truncated: false,
         elapsed_ms: 0,
     })
@@ -332,7 +339,11 @@ fn select_all_for(known: &HashMap<String, (String, String)>, name: &str) -> Stri
         .get(name)
         .cloned()
         .unwrap_or_else(|| ("public".to_string(), name.to_string()));
-    format!("SELECT * FROM {}.{} LIMIT 100;", quote_ident(&schema), quote_ident(&table))
+    format!(
+        "SELECT * FROM {}.{} LIMIT 100;",
+        quote_ident(&schema),
+        quote_ident(&table)
+    )
 }
 
 pub enum Cmd {
@@ -406,7 +417,11 @@ impl Engine {
         let alive = Arc::new(AtomicBool::new(true));
         let names = Arc::new(Mutex::new(HashMap::new()));
 
-        let dbs = Arc::new(Mutex::new(if all_databases { list_databases(&mut client) } else { Vec::new() }));
+        let dbs = Arc::new(Mutex::new(if all_databases {
+            list_databases(&mut client)
+        } else {
+            Vec::new()
+        }));
         let current = Arc::new(Mutex::new(opts.database.clone()));
         let canceller = Arc::new(Mutex::new(canceller));
 
@@ -489,7 +504,15 @@ impl Engine {
             })
             .expect("spawn postgres worker");
 
-        Self { cmd_tx, state, alive, canceller, dbs, current, names }
+        Self {
+            cmd_tx,
+            state,
+            alive,
+            canceller,
+            dbs,
+            current,
+            names,
+        }
     }
 }
 
@@ -541,9 +564,18 @@ mod tests {
     #[test]
     fn select_all_resolves_schema_and_defaults_to_public() {
         let mut known = HashMap::new();
-        known.insert("ventas.pedido".to_string(), ("ventas".to_string(), "pedido".to_string()));
-        assert_eq!(select_all_for(&known, "ventas.pedido"), "SELECT * FROM \"ventas\".\"pedido\" LIMIT 100;");
-        assert_eq!(select_all_for(&known, "usuario"), "SELECT * FROM \"public\".\"usuario\" LIMIT 100;");
+        known.insert(
+            "ventas.pedido".to_string(),
+            ("ventas".to_string(), "pedido".to_string()),
+        );
+        assert_eq!(
+            select_all_for(&known, "ventas.pedido"),
+            "SELECT * FROM \"ventas\".\"pedido\" LIMIT 100;"
+        );
+        assert_eq!(
+            select_all_for(&known, "usuario"),
+            "SELECT * FROM \"public\".\"usuario\" LIMIT 100;"
+        );
     }
 
     #[test]
@@ -608,7 +640,12 @@ mod tests {
         let r = run_sql(&mut c, "SELECT nombre FROM rusio_t.persona WHERE false", 10).unwrap();
         assert_eq!(r.table.unwrap().columns, ["nombre"]);
 
-        let r = run_sql(&mut c, "UPDATE rusio_t.persona SET edad = 1; SELECT count(*) AS n FROM rusio_t.persona", 10).unwrap();
+        let r = run_sql(
+            &mut c,
+            "UPDATE rusio_t.persona SET edad = 1; SELECT count(*) AS n FROM rusio_t.persona",
+            10,
+        )
+        .unwrap();
         assert_eq!(r.table.unwrap().rows, [["2"]]);
 
         let r = run_sql(&mut c, "DELETE FROM rusio_t.persona", 10).unwrap();
@@ -665,8 +702,13 @@ mod tests {
         let state = engine.state();
 
         engine.run("SELECT 42 AS x".into());
-        wait_for(&state, "select", |s| !s.busy && s.result.as_ref().is_some_and(|r| r.message == "1 fila"));
-        assert_eq!(state.lock().result.as_ref().unwrap().table.as_ref().unwrap().rows[0][0], "42");
+        wait_for(&state, "select", |s| {
+            !s.busy && s.result.as_ref().is_some_and(|r| r.message == "1 fila")
+        });
+        assert_eq!(
+            state.lock().result.as_ref().unwrap().table.as_ref().unwrap().rows[0][0],
+            "42"
+        );
 
         engine.run("SELECT pg_sleep(30)".into());
         wait_for(&state, "start", |s| s.busy);
@@ -699,12 +741,18 @@ mod tests {
         assert_eq!(engine.current_database(), opts.database);
 
         engine.switch_database("rusio_t2");
-        wait_for(&state, "switch", |s| !s.busy && s.tables.iter().any(|t| t.name == "solo_en_t2"));
+        wait_for(&state, "switch", |s| {
+            !s.busy && s.tables.iter().any(|t| t.name == "solo_en_t2")
+        });
         assert_eq!(engine.current_database(), "rusio_t2");
 
         engine.run("SELECT current_database()".into());
         wait_for(&state, "query", |s| {
-            !s.busy && s.result.as_ref().and_then(|r| r.table.as_ref()).is_some_and(|t| t.rows[0][0] == "rusio_t2")
+            !s.busy
+                && s.result
+                    .as_ref()
+                    .and_then(|r| r.table.as_ref())
+                    .is_some_and(|t| t.rows[0][0] == "rusio_t2")
         });
 
         // A failed switch keeps the current connection.

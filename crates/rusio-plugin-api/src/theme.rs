@@ -11,10 +11,10 @@ pub struct Theme {
     pub text_primary: Color32,
     pub text_secondary: Color32,
     pub text_muted: Color32,
-    pub accent_primary: Color32,   // Indigo/Cyan
-    pub accent_ssh: Color32,       // Emerald
-    pub accent_local: Color32,     // Purple/Blue
-    pub accent_vnc: Color32,       // Orange/Amber
+    pub accent_primary: Color32, // Indigo/Cyan
+    pub accent_ssh: Color32,     // Emerald
+    pub accent_local: Color32,   // Purple/Blue
+    pub accent_vnc: Color32,     // Orange/Amber
     pub status_online: Color32,
     #[allow(dead_code)]
     pub status_connecting: Color32,
@@ -24,13 +24,13 @@ pub struct Theme {
 impl Default for Theme {
     fn default() -> Self {
         Self {
-            bg_dark: Color32::from_rgb(13, 16, 23),       // Deep obsidian
-            bg_panel: Color32::from_rgb(20, 24, 34),      // Slate panel
-            bg_panel_alt: Color32::from_rgb(26, 31, 44),  // Card background
-            bg_active: Color32::from_rgb(37, 44, 62),     // Active item
-            bg_hover: Color32::from_rgb(30, 36, 51),      // Hover item
-            border: Color32::from_rgb(38, 45, 63),        // Border
-            border_focus: Color32::from_rgb(99, 102, 241),// Focus indigo
+            bg_dark: Color32::from_rgb(13, 16, 23),        // Deep obsidian
+            bg_panel: Color32::from_rgb(20, 24, 34),       // Slate panel
+            bg_panel_alt: Color32::from_rgb(26, 31, 44),   // Card background
+            bg_active: Color32::from_rgb(37, 44, 62),      // Active item
+            bg_hover: Color32::from_rgb(30, 36, 51),       // Hover item
+            border: Color32::from_rgb(38, 45, 63),         // Border
+            border_focus: Color32::from_rgb(99, 102, 241), // Focus indigo
             text_primary: Color32::from_rgb(243, 244, 246),
             text_secondary: Color32::from_rgb(156, 163, 175),
             text_muted: Color32::from_rgb(107, 114, 128),

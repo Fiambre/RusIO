@@ -1,4 +1,4 @@
-use rusio_plugin_api::egui::{self, Color32, Rect, RichText, CornerRadius, Sense, Vec2};
+use rusio_plugin_api::egui::{self, Color32, CornerRadius, Rect, RichText, Sense, Vec2};
 
 use crate::sftp::{human_size, SftpCmd, SftpEntry, SftpSession};
 use rusio_plugin_api::icons::{self, Icon};
@@ -36,7 +36,14 @@ fn format_time(ts: u64) -> String {
     let d = doy - (153 * mp + 2) / 5 + 1;
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
-    format!("{:04}-{:02}-{:02} {:02}:{:02}", y, m, d, secs / 3600, (secs % 3600) / 60)
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}",
+        y,
+        m,
+        d,
+        secs / 3600,
+        (secs % 3600) / 60
+    )
 }
 
 fn format_perm(perm: Option<u32>, is_dir: bool) -> String {
@@ -79,7 +86,10 @@ fn pick_and_download(session: &SftpSession, cwd: &str, entry: &SftpEntry) {
     let remote = join(cwd, &entry.name);
     if entry.is_dir {
         if let Some(dir) = rfd::FileDialog::new().set_title("Descargar en...").pick_folder() {
-            session.send(SftpCmd::Download { remote, local: dir.join(&entry.name) });
+            session.send(SftpCmd::Download {
+                remote,
+                local: dir.join(&entry.name),
+            });
         }
     } else if let Some(path) = rfd::FileDialog::new()
         .set_title("Guardar como")
@@ -117,7 +127,10 @@ pub fn render_sftp(ui: &mut egui::Ui, s: &mut SftpSession) {
         for f in dropped {
             let path = f.path();
             if !path.as_os_str().is_empty() {
-                s.send(SftpCmd::Upload { local: path.to_path_buf(), remote_dir: cwd.clone() });
+                s.send(SftpCmd::Upload {
+                    local: path.to_path_buf(),
+                    remote_dir: cwd.clone(),
+                });
             }
         }
     }
@@ -129,12 +142,30 @@ pub fn render_sftp(ui: &mut egui::Ui, s: &mut SftpSession) {
 
         icons::status_dot(
             ui,
-            if connected { theme.status_online } else if is_error { theme.status_offline } else { theme.text_muted },
+            if connected {
+                theme.status_online
+            } else if is_error {
+                theme.status_offline
+            } else {
+                theme.text_muted
+            },
         );
         ui.label(
-            RichText::new(if connected { "SFTP CONECTADO" } else if is_error { "SFTP DESCONECTADO" } else { "CONECTANDO..." })
-                .size(10.0)
-                .color(if connected { theme.status_online } else if is_error { theme.status_offline } else { theme.text_secondary }),
+            RichText::new(if connected {
+                "SFTP CONECTADO"
+            } else if is_error {
+                "SFTP DESCONECTADO"
+            } else {
+                "CONECTANDO..."
+            })
+            .size(10.0)
+            .color(if connected {
+                theme.status_online
+            } else if is_error {
+                theme.status_offline
+            } else {
+                theme.text_secondary
+            }),
         );
         ui.separator();
 
@@ -149,8 +180,7 @@ pub fn render_sftp(ui: &mut egui::Ui, s: &mut SftpSession) {
 
             let resp = ui.add_sized(
                 [(ui.available_width() - 4.0 * (CTRL_H + 4.0) - 4.0).max(120.0), CTRL_H],
-                egui::TextEdit::singleline(&mut s.ui.path_edit)
-                    .vertical_align(egui::Align::Center),
+                egui::TextEdit::singleline(&mut s.ui.path_edit).vertical_align(egui::Align::Center),
             );
             if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 s.send(SftpCmd::List(s.ui.path_edit.trim().to_string()));
@@ -159,13 +189,19 @@ pub fn render_sftp(ui: &mut egui::Ui, s: &mut SftpSession) {
             if icons::icon_button_sized(ui, Icon::Upload, None, "Subir archivos...", CTRL_H) {
                 if let Some(files) = rfd::FileDialog::new().set_title("Subir archivos").pick_files() {
                     for f in files {
-                        s.send(SftpCmd::Upload { local: f, remote_dir: cwd.clone() });
+                        s.send(SftpCmd::Upload {
+                            local: f,
+                            remote_dir: cwd.clone(),
+                        });
                     }
                 }
             }
             if icons::icon_button_sized(ui, Icon::UploadFolder, None, "Subir carpeta...", CTRL_H) {
                 if let Some(dir) = rfd::FileDialog::new().set_title("Subir carpeta").pick_folder() {
-                    s.send(SftpCmd::Upload { local: dir, remote_dir: cwd.clone() });
+                    s.send(SftpCmd::Upload {
+                        local: dir,
+                        remote_dir: cwd.clone(),
+                    });
                 }
             }
             if icons::icon_button_sized(ui, Icon::FolderPlus, None, "Nueva carpeta...", CTRL_H) {
@@ -212,7 +248,15 @@ pub fn render_sftp(ui: &mut egui::Ui, s: &mut SftpSession) {
             let width = ui.available_width();
             let name_w = (width - SIZE_W - DATE_W - PERM_W - 24.0).max(120.0);
 
-            let text_at = |ui: &egui::Ui, rect: Rect, col_x: f32, col_w: f32, right: bool, text: &str, size: f32, color: Color32, mono: bool| {
+            let text_at = |ui: &egui::Ui,
+                           rect: Rect,
+                           col_x: f32,
+                           col_w: f32,
+                           right: bool,
+                           text: &str,
+                           size: f32,
+                           color: Color32,
+                           mono: bool| {
                 let col = Rect::from_min_size(
                     egui::pos2(rect.left() + col_x, rect.top()),
                     Vec2::new(col_w, rect.height()),
@@ -239,10 +283,40 @@ pub fn render_sftp(ui: &mut egui::Ui, s: &mut SftpSession) {
             let size_x = name_x + name_w;
             let date_x = size_x + SIZE_W + 12.0;
             let perm_x = date_x + DATE_W + 12.0;
-            text_at(ui, hrect, name_x, name_w, false, "Nombre", 10.0, theme.text_muted, false);
+            text_at(
+                ui,
+                hrect,
+                name_x,
+                name_w,
+                false,
+                "Nombre",
+                10.0,
+                theme.text_muted,
+                false,
+            );
             text_at(ui, hrect, size_x, SIZE_W, true, "Tamaño", 10.0, theme.text_muted, false);
-            text_at(ui, hrect, date_x, DATE_W, false, "Modificado", 10.0, theme.text_muted, false);
-            text_at(ui, hrect, perm_x, PERM_W, false, "Permisos", 10.0, theme.text_muted, false);
+            text_at(
+                ui,
+                hrect,
+                date_x,
+                DATE_W,
+                false,
+                "Modificado",
+                10.0,
+                theme.text_muted,
+                false,
+            );
+            text_at(
+                ui,
+                hrect,
+                perm_x,
+                PERM_W,
+                false,
+                "Permisos",
+                10.0,
+                theme.text_muted,
+                false,
+            );
 
             // ".." row
             if connected && cwd != "/" {
@@ -275,9 +349,29 @@ pub fn render_sftp(ui: &mut egui::Ui, s: &mut SftpSession) {
                 }
 
                 paint_entry_icon_at(ui, rect.min + Vec2::new(8.0, 6.0), entry.is_dir);
-                text_at(ui, rect, name_x, name_w, false, &entry.name, 12.5, theme.text_primary, false);
+                text_at(
+                    ui,
+                    rect,
+                    name_x,
+                    name_w,
+                    false,
+                    &entry.name,
+                    12.5,
+                    theme.text_primary,
+                    false,
+                );
                 if !entry.is_dir {
-                    text_at(ui, rect, size_x, SIZE_W, true, &human_size(entry.size), 11.0, theme.text_secondary, false);
+                    text_at(
+                        ui,
+                        rect,
+                        size_x,
+                        SIZE_W,
+                        true,
+                        &human_size(entry.size),
+                        11.0,
+                        theme.text_secondary,
+                        false,
+                    );
                 }
                 text_at(
                     ui,
@@ -335,8 +429,7 @@ pub fn render_sftp(ui: &mut egui::Ui, s: &mut SftpSession) {
                         .button(RichText::new("Eliminar...").color(theme.status_offline))
                         .clicked()
                     {
-                        s.ui.delete =
-                            Some((join(&cwd, &entry.name), entry.is_dir, entry.name.clone()));
+                        s.ui.delete = Some((join(&cwd, &entry.name), entry.is_dir, entry.name.clone()));
                         ui.close();
                     }
                 });
@@ -349,10 +442,7 @@ pub fn render_sftp(ui: &mut egui::Ui, s: &mut SftpSession) {
         });
 
     // Keyboard shortcuts act on the selected row (never while typing or in a dialog).
-    let dialog_open = s.ui.delete.is_some()
-        || s.ui.rename.is_some()
-        || s.ui.mkdir.is_some()
-        || s.ui.newfile.is_some();
+    let dialog_open = s.ui.delete.is_some() || s.ui.rename.is_some() || s.ui.mkdir.is_some() || s.ui.newfile.is_some();
     if connected && !dialog_open && !ui.ctx().egui_wants_keyboard_input() {
         if let Some(sel) = s.ui.selected.clone() {
             if let Some(entry) = entries.iter().find(|e| e.name == sel) {
@@ -456,7 +546,10 @@ fn dialogs(ctx: &egui::Context, s: &mut SftpSession, cwd: &str, theme: &Theme) {
             cancel = true;
         }
         if ok && !new_name.trim().is_empty() {
-            s.send(SftpCmd::Rename { from: path.clone(), to: join(&parent_of(&path), new_name.trim()) });
+            s.send(SftpCmd::Rename {
+                from: path.clone(),
+                to: join(&parent_of(&path), new_name.trim()),
+            });
         } else if !cancel {
             s.ui.rename = Some((path, new_name));
         }

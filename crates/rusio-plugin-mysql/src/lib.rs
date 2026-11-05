@@ -7,8 +7,8 @@ use rusio_plugin_api::serde_json;
 use rusio_plugin_api::sql::SqlConsole;
 use rusio_plugin_api::theme::Theme;
 use rusio_plugin_api::{
-    setting_i64, Category, ConnectRequest, Connected, Endpoint, Params, Plugin, ProtocolDef, ProtocolIcon,
-    SecretField, SettingField, SettingKind, WelcomeCard,
+    setting_i64, Category, ConnectRequest, Connected, Endpoint, Params, Plugin, ProtocolDef, ProtocolIcon, SecretField,
+    SettingField, SettingKind, WelcomeCard,
 };
 use serde::{Deserialize, Serialize};
 
@@ -49,8 +49,7 @@ impl Default for MysqlParams {
 
 impl MysqlParams {
     fn from_value(v: &Params) -> Result<Self, String> {
-        let mut p: MysqlParams =
-            serde_json::from_value(v.clone()).map_err(|e| format!("parámetros inválidos: {e}"))?;
+        let mut p: MysqlParams = serde_json::from_value(v.clone()).map_err(|e| format!("parámetros inválidos: {e}"))?;
         if p.password.as_deref() == Some("") {
             p.password = None;
         }
@@ -86,7 +85,10 @@ impl Plugin for MysqlPlugin {
             name: "MySQL / MariaDB",
             badge: "MY",
             color: BADGE_COLOR,
-            secrets: vec![SecretField { tag: "mysql-password", pointer: "/password" }],
+            secrets: vec![SecretField {
+                tag: "mysql-password",
+                pointer: "/password",
+            }],
             quick_connect: None,
             actions: vec![],
             welcome: Some(WelcomeCard {
@@ -96,7 +98,10 @@ impl Plugin for MysqlPlugin {
             category: Category::Database,
             icon: ProtocolIcon::Logo(include_bytes!("../assets/mysql.svg")),
             gateway: false,
-            endpoint: Some(Endpoint { get: endpoint_get, set: endpoint_set }),
+            endpoint: Some(Endpoint {
+                get: endpoint_get,
+                set: endpoint_set,
+            }),
         }
     }
 
@@ -107,7 +112,11 @@ impl Plugin for MysqlPlugin {
     fn summary(&self, params: &Params) -> String {
         MysqlParams::from_value(params)
             .map(|p| {
-                let db = if p.database.is_empty() { String::new() } else { format!("/{}", p.database) };
+                let db = if p.database.is_empty() {
+                    String::new()
+                } else {
+                    format!("/{}", p.database)
+                };
                 format!("{}@{}:{}{}", p.user, p.host, p.port, db)
             })
             .unwrap_or_default()
@@ -122,7 +131,10 @@ impl Plugin for MysqlPlugin {
             ui.text_edit_singleline(&mut p.host);
             ui.label("Puerto:");
             let mut port = p.port.to_string();
-            if ui.add(egui::TextEdit::singleline(&mut port).desired_width(60.0)).changed() {
+            if ui
+                .add(egui::TextEdit::singleline(&mut port).desired_width(60.0))
+                .changed()
+            {
                 if let Ok(v) = port.parse::<u16>() {
                     p.port = v;
                 }
@@ -156,7 +168,10 @@ impl Plugin for MysqlPlugin {
                     }
                 });
         });
-        ui.checkbox(&mut p.all_databases, "Mostrar todas las bases de datos (selector para cambiar de base)");
+        ui.checkbox(
+            &mut p.all_databases,
+            "Mostrar todas las bases de datos (selector para cambiar de base)",
+        );
         ui.checkbox(&mut p.read_only, "Solo lectura (la sesión rechaza modificaciones)");
         ui.label(
             RichText::new("Con \"Obligatorio\" el cifrado es obligatorio pero el certificado no se verifica.")
@@ -176,19 +191,34 @@ impl Plugin for MysqlPlugin {
                 key: "max_rows",
                 label: "Máximo de filas por consulta",
                 help: "Un resultado más grande se corta a este número de filas.",
-                kind: SettingKind::Int { default: 1000, min: 10, max: 100_000, suffix: " filas" },
+                kind: SettingKind::Int {
+                    default: 1000,
+                    min: 10,
+                    max: 100_000,
+                    suffix: " filas",
+                },
             },
             SettingField {
                 key: "connect_timeout_secs",
                 label: "Tiempo máximo para conectar",
                 help: "Cuánto esperar al servidor antes de rendirse.",
-                kind: SettingKind::Int { default: 10, min: 1, max: 120, suffix: " s" },
+                kind: SettingKind::Int {
+                    default: 10,
+                    min: 1,
+                    max: 120,
+                    suffix: " s",
+                },
             },
             SettingField {
                 key: "statement_timeout_secs",
                 label: "Tiempo máximo por consulta",
                 help: "El servidor aborta las consultas más lentas. 0 = sin límite.",
-                kind: SettingKind::Int { default: 0, min: 0, max: 3600, suffix: " s" },
+                kind: SettingKind::Int {
+                    default: 0,
+                    min: 0,
+                    max: 3600,
+                    suffix: " s",
+                },
             },
         ]
     }
@@ -211,7 +241,11 @@ impl Plugin for MysqlPlugin {
         let conn = engine::connect(&opts)?;
         let ctx = req.ctx.clone();
         let engine = Engine::start(conn, opts, p.all_databases, max_rows, move || ctx.request_repaint());
-        let title = if p.database.is_empty() { p.host.clone() } else { format!("{}@{}", p.database, p.host) };
+        let title = if p.database.is_empty() {
+            p.host.clone()
+        } else {
+            format!("{}@{}", p.database, p.host)
+        };
         Ok(Connected {
             title,
             session: Box::new(SqlConsole::new(Box::new(engine), ("MY", BADGE_COLOR))),

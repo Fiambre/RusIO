@@ -7,9 +7,7 @@ use rusio_plugin_api::icons::Icon;
 use rusio_plugin_api::serde_json::{self, json};
 use rusio_plugin_api::term::{SharedTerminal, TerminalEmulator, TerminalSession};
 use rusio_plugin_api::theme::Theme;
-use rusio_plugin_api::{
-    Category, ConnectRequest, Connected, Params, Plugin, ProtocolDef, ProtocolIcon, QuickLaunch,
-};
+use rusio_plugin_api::{Category, ConnectRequest, Connected, Params, Plugin, ProtocolDef, ProtocolIcon, QuickLaunch};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -42,10 +40,7 @@ impl LocalShellType {
             LocalShellType::PowerShell => ("powershell.exe".to_string(), vec!["-NoLogo".to_string()]),
             LocalShellType::Cmd => ("cmd.exe".to_string(), vec![]),
             LocalShellType::Wsl => ("wsl.exe".to_string(), vec![]),
-            LocalShellType::GitBash => (
-                "bash.exe".to_string(),
-                vec!["--login".to_string(), "-i".to_string()],
-            ),
+            LocalShellType::GitBash => ("bash.exe".to_string(), vec!["--login".to_string(), "-i".to_string()]),
             LocalShellType::Custom(cmd) => (cmd.clone(), vec![]),
         }
     }
@@ -140,7 +135,13 @@ impl Plugin for LocalPlugin {
             featured,
         };
         vec![
-            mk("PowerShell", "PowerShell", "Terminal local ConPTY", theme.accent_primary, true),
+            mk(
+                "PowerShell",
+                "PowerShell",
+                "Terminal local ConPTY",
+                theme.accent_primary,
+                true,
+            ),
             mk("Wsl", "WSL", "Ubuntu / Debian Bash", theme.accent_local, true),
             mk("Cmd", "CMD", "Símbolo del sistema", theme.text_secondary, false),
         ]

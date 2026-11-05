@@ -7,8 +7,8 @@ use rusio_plugin_api::serde_json;
 use rusio_plugin_api::sql::SqlConsole;
 use rusio_plugin_api::theme::Theme;
 use rusio_plugin_api::{
-    setting_i64, Category, ConnectRequest, Connected, Endpoint, Params, Plugin, ProtocolDef, ProtocolIcon,
-    SecretField, SettingField, SettingKind, WelcomeCard,
+    setting_i64, Category, ConnectRequest, Connected, Endpoint, Params, Plugin, ProtocolDef, ProtocolIcon, SecretField,
+    SettingField, SettingKind, WelcomeCard,
 };
 use serde::{Deserialize, Serialize};
 
@@ -85,7 +85,10 @@ impl Plugin for PostgresPlugin {
             name: "PostgreSQL",
             badge: "PG",
             color: BADGE_COLOR,
-            secrets: vec![SecretField { tag: "pg-password", pointer: "/password" }],
+            secrets: vec![SecretField {
+                tag: "pg-password",
+                pointer: "/password",
+            }],
             quick_connect: None,
             actions: vec![],
             welcome: Some(WelcomeCard {
@@ -95,7 +98,10 @@ impl Plugin for PostgresPlugin {
             category: Category::Database,
             icon: ProtocolIcon::Logo(include_bytes!("../assets/postgresql.svg")),
             gateway: false,
-            endpoint: Some(Endpoint { get: endpoint_get, set: endpoint_set }),
+            endpoint: Some(Endpoint {
+                get: endpoint_get,
+                set: endpoint_set,
+            }),
         }
     }
 
@@ -118,7 +124,10 @@ impl Plugin for PostgresPlugin {
             ui.text_edit_singleline(&mut p.host);
             ui.label("Puerto:");
             let mut port = p.port.to_string();
-            if ui.add(egui::TextEdit::singleline(&mut port).desired_width(60.0)).changed() {
+            if ui
+                .add(egui::TextEdit::singleline(&mut port).desired_width(60.0))
+                .changed()
+            {
                 if let Ok(v) = port.parse::<u16>() {
                     p.port = v;
                 }
@@ -152,7 +161,10 @@ impl Plugin for PostgresPlugin {
                     }
                 });
         });
-        ui.checkbox(&mut p.all_databases, "Mostrar todas las bases de datos (selector para cambiar de base)");
+        ui.checkbox(
+            &mut p.all_databases,
+            "Mostrar todas las bases de datos (selector para cambiar de base)",
+        );
         ui.checkbox(&mut p.read_only, "Solo lectura (la sesión rechaza modificaciones)");
         ui.label(
             RichText::new("Con \"Obligatorio\" el cifrado es obligatorio pero el certificado no se verifica.")
@@ -206,7 +218,9 @@ impl Plugin for PostgresPlugin {
 
         let (client, canceller) = engine::connect(&opts)?;
         let ctx = req.ctx.clone();
-        let engine = Engine::start(client, canceller, opts, p.all_databases, max_rows, move || ctx.request_repaint());
+        let engine = Engine::start(client, canceller, opts, p.all_databases, max_rows, move || {
+            ctx.request_repaint()
+        });
         Ok(Connected {
             title: format!("{}@{}", p.database, p.host),
             session: Box::new(SqlConsole::new(Box::new(engine), ("PG", BADGE_COLOR))),

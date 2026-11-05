@@ -49,9 +49,7 @@ impl Settings {
     }
 
     pub fn connections_path_or_default(&self) -> PathBuf {
-        self.connections_path
-            .clone()
-            .unwrap_or_else(ConfigStore::default_path)
+        self.connections_path.clone().unwrap_or_else(ConfigStore::default_path)
     }
 
     /// Current values of a plugin's settings (empty if it never saved any).

@@ -6,8 +6,8 @@ use rusio_plugin_api::icons::{self, Icon};
 use rusio_plugin_api::serde_json;
 use rusio_plugin_api::theme::Theme;
 use rusio_plugin_api::{
-    Category, ConnectRequest, Connected, Endpoint, Host, Params, Plugin, ProtocolDef, ProtocolIcon,
-    QuickConnect, SecretField, Session, WelcomeCard,
+    Category, ConnectRequest, Connected, Endpoint, Host, Params, Plugin, ProtocolDef, ProtocolIcon, QuickConnect,
+    SecretField, Session, WelcomeCard,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
@@ -25,8 +25,7 @@ pub struct VncParams {
 
 impl VncParams {
     fn from_value(v: &Params) -> Result<Self, String> {
-        let mut p: VncParams =
-            serde_json::from_value(v.clone()).map_err(|e| format!("parámetros inválidos: {e}"))?;
+        let mut p: VncParams = serde_json::from_value(v.clone()).map_err(|e| format!("parámetros inválidos: {e}"))?;
         // An empty password (blanked by the secret store) means "none".
         if p.password.as_deref() == Some("") {
             p.password = None;
@@ -75,7 +74,14 @@ fn parse_quick_connect(raw: &str) -> Option<Params> {
     if host.is_empty() {
         return None;
     }
-    Some(VncParams { host, port, password: None }.to_value())
+    Some(
+        VncParams {
+            host,
+            port,
+            password: None,
+        }
+        .to_value(),
+    )
 }
 
 pub struct VncPlugin;
@@ -87,7 +93,10 @@ impl Plugin for VncPlugin {
             name: "VNC (Escritorio Remoto)",
             badge: "VNC",
             color: Theme::default().accent_vnc,
-            secrets: vec![SecretField { tag: "vnc-password", pointer: "/password" }],
+            secrets: vec![SecretField {
+                tag: "vnc-password",
+                pointer: "/password",
+            }],
             quick_connect: Some(QuickConnect {
                 label: "VNC",
                 hint: "host:puerto",
@@ -155,10 +164,7 @@ impl Plugin for VncPlugin {
             .map_err(|e| format!("Error VNC: {e}"))?;
         Ok(Connected {
             title,
-            session: Box::new(VncPane {
-                session,
-                texture: None,
-            }),
+            session: Box::new(VncPane { session, texture: None }),
         })
     }
 }
@@ -220,11 +226,7 @@ impl Session for VncPane {
             let mut fb = self.session.framebuffer.lock();
             if fb.dirty || self.texture.is_none() {
                 let img = egui::ColorImage::from_rgba_unmultiplied([fb.width, fb.height], &fb.pixels);
-                self.texture = Some(ui.ctx().load_texture(
-                    "vnc_frame",
-                    img,
-                    egui::TextureOptions::LINEAR,
-                ));
+                self.texture = Some(ui.ctx().load_texture("vnc_frame", img, egui::TextureOptions::LINEAR));
                 fb.dirty = false;
             }
         }

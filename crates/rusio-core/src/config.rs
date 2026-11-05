@@ -61,15 +61,13 @@ impl<'de> Deserialize<'de> for ProtocolData {
 }
 
 fn nonempty_str(v: Option<&Value>) -> bool {
-    v.and_then(Value::as_str).map_or(false, |s| !s.is_empty())
+    v.and_then(Value::as_str).is_some_and(|s| !s.is_empty())
 }
 
 impl ProtocolData {
     /// True if `params` carries a non-empty secret in memory.
     fn has_secrets(&self, fields: &[SecretField]) -> bool {
-        fields
-            .iter()
-            .any(|f| nonempty_str(self.params.pointer(f.pointer)))
+        fields.iter().any(|f| nonempty_str(self.params.pointer(f.pointer)))
     }
 
     /// Fills in secrets that are not in the file from the OS credential store.
@@ -175,9 +173,19 @@ impl Default for ConfigStore {
         };
 
         let connections = vec![
-            local("PowerShell Windows", "PowerShell", "#38bdf8", "PowerShell nativo con ConPTY"),
+            local(
+                "PowerShell Windows",
+                "PowerShell",
+                "#38bdf8",
+                "PowerShell nativo con ConPTY",
+            ),
             local("WSL Linux Shell", "Wsl", "#a855f7", "Subsistema de Windows para Linux"),
-            local("Command Prompt (CMD)", "Cmd", "#94a3b8", "Símbolo del sistema de Windows"),
+            local(
+                "Command Prompt (CMD)",
+                "Cmd",
+                "#94a3b8",
+                "Símbolo del sistema de Windows",
+            ),
             ConnectionProfile {
                 id: Uuid::new_v4(),
                 name: "Servidor SSH Demo".to_string(),
@@ -200,10 +208,7 @@ impl Default for ConfigStore {
                 id: Uuid::new_v4(),
                 name: "VNC Localhost".to_string(),
                 folder_id: Some(servers_folder_id),
-                protocol: ProtocolData::new(
-                    "Vnc",
-                    json!({ "host": "127.0.0.1", "port": 5900, "password": null }),
-                ),
+                protocol: ProtocolData::new("Vnc", json!({ "host": "127.0.0.1", "port": 5900, "password": null })),
                 color_tag: Some("#f97316".to_string()),
                 description: "Escritorio remoto VNC en puerto 5900".to_string(),
                 via: None,
@@ -227,13 +232,11 @@ impl ConfigStore {
             let dir = base.join("rusio");
             let legacy = base.join("pulento");
             // The project used to be called Pulento: carry its data over once.
-            if !dir.exists() && legacy.exists() {
-                if fs::rename(&legacy, &dir).is_err() {
-                    let _ = fs::create_dir_all(&dir);
-                    if let Ok(entries) = fs::read_dir(&legacy) {
-                        for e in entries.flatten() {
-                            let _ = fs::copy(e.path(), dir.join(e.file_name()));
-                        }
+            if !dir.exists() && legacy.exists() && fs::rename(&legacy, &dir).is_err() {
+                let _ = fs::create_dir_all(&dir);
+                if let Ok(entries) = fs::read_dir(&legacy) {
+                    for e in entries.flatten() {
+                        let _ = fs::copy(e.path(), dir.join(e.file_name()));
                     }
                 }
             }
@@ -263,8 +266,7 @@ impl ConfigStore {
 
     pub fn load_from(path: &Path, schema: &SecretSchema) -> Result<Self, String> {
         let data = fs::read_to_string(path).map_err(|e| e.to_string())?;
-        let mut cfg: ConfigStore =
-            serde_json::from_str(&data).map_err(|e| format!("archivo inválido: {}", e))?;
+        let mut cfg: ConfigStore = serde_json::from_str(&data).map_err(|e| format!("archivo inválido: {}", e))?;
         cfg.path = path.to_path_buf();
         cfg.schema = schema.clone();
 
@@ -302,8 +304,7 @@ impl ConfigStore {
         }
         self.secrets_unavailable = !all_ok;
 
-        let json = serde_json::to_string_pretty(&out)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        let json = serde_json::to_string_pretty(&out).map_err(|e| std::io::Error::other(e))?;
         fs::write(&self.path, json)
     }
 
@@ -400,8 +401,14 @@ mod tests {
         s.insert(
             "Ssh".into(),
             vec![
-                SecretField { tag: "ssh-password", pointer: "/auth/Password" },
-                SecretField { tag: "key-passphrase", pointer: "/auth/KeyFile/passphrase" },
+                SecretField {
+                    tag: "ssh-password",
+                    pointer: "/auth/Password",
+                },
+                SecretField {
+                    tag: "key-passphrase",
+                    pointer: "/auth/KeyFile/passphrase",
+                },
             ],
         );
         s
@@ -423,7 +430,10 @@ mod tests {
     fn add_remove_folder() {
         let mut config = ConfigStore::default();
         let folder_id = config.add_folder("Laboratorio".to_string());
-        assert!(config.folders.iter().any(|f| f.id == folder_id && f.name == "Laboratorio"));
+        assert!(config
+            .folders
+            .iter()
+            .any(|f| f.id == folder_id && f.name == "Laboratorio"));
 
         config.remove_folder(folder_id);
         assert!(!config.folders.iter().any(|f| f.id == folder_id));

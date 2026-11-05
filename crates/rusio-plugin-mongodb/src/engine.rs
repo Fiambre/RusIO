@@ -48,14 +48,21 @@ pub fn connect(o: &ConnectOptions) -> Result<Client, String> {
                 return Err("Indica el servidor.".to_string());
             }
             let mut b = ClientOptions::default();
-            b.hosts = vec![ServerAddress::Tcp { host: o.host.clone(), port: Some(o.port) }];
+            b.hosts = vec![ServerAddress::Tcp {
+                host: o.host.clone(),
+                port: Some(o.port),
+            }];
             // One server, even if it belongs to a replica set (the address may be a tunnel).
             b.direct_connection = Some(true);
             if !o.user.is_empty() {
                 let mut c = Credential::default();
                 c.username = Some(o.user.clone());
                 c.password = o.password.clone();
-                c.source = Some(if o.auth_source.is_empty() { "admin".to_string() } else { o.auth_source.clone() });
+                c.source = Some(if o.auth_source.is_empty() {
+                    "admin".to_string()
+                } else {
+                    o.auth_source.clone()
+                });
                 b.credential = Some(c);
             }
             if o.tls {
@@ -121,7 +128,12 @@ pub fn docs_to_table(docs: &[Document]) -> DataTable {
     }
     let rows = docs
         .iter()
-        .map(|d| columns.iter().map(|c| d.get(c).map_or_else(String::new, cell)).collect())
+        .map(|d| {
+            columns
+                .iter()
+                .map(|c| d.get(c).map_or_else(String::new, cell))
+                .collect()
+        })
         .collect();
     DataTable { columns, rows }
 }
@@ -156,11 +168,19 @@ fn table_result(docs: Vec<Document>, truncated: bool, start: Instant) -> QueryRe
 }
 
 fn message_result(message: String, start: Instant) -> QueryResult {
-    QueryResult { table: None, truncated: false, elapsed_ms: start.elapsed().as_millis(), message }
+    QueryResult {
+        table: None,
+        truncated: false,
+        elapsed_ms: start.elapsed().as_millis(),
+        message,
+    }
 }
 
 /// Reads up to `max_rows` documents; the flag says there were more.
-fn take_docs(cursor: impl Iterator<Item = mongodb::error::Result<Document>>, max_rows: usize) -> Result<(Vec<Document>, bool), String> {
+fn take_docs(
+    cursor: impl Iterator<Item = mongodb::error::Result<Document>>,
+    max_rows: usize,
+) -> Result<(Vec<Document>, bool), String> {
     let mut docs = Vec::new();
     for d in cursor {
         if docs.len() >= max_rows {
@@ -185,10 +205,19 @@ fn run(client: &Client, db: &str, text: &str, lim: &Limits) -> Result<QueryResul
     let start = Instant::now();
 
     match op {
-        Op::Find { coll, filter, projection, sort, limit, skip } => {
+        Op::Find {
+            coll,
+            filter,
+            projection,
+            sort,
+            limit,
+            skip,
+        } => {
             let c = database.collection::<Document>(&coll);
             // One more than we show tells us whether the result was cut.
-            let cap = limit.filter(|l| *l > 0).map_or(lim.max_rows, |l| (l as usize).min(lim.max_rows));
+            let cap = limit
+                .filter(|l| *l > 0)
+                .map_or(lim.max_rows, |l| (l as usize).min(lim.max_rows));
             let mut find = c.find(filter).limit(cap as i64 + 1);
             if let Some(p) = projection {
                 find = find.projection(p);
@@ -204,7 +233,7 @@ fn run(client: &Client, db: &str, text: &str, lim: &Limits) -> Result<QueryResul
             }
             let (docs, more) = take_docs(find.run().map_err(describe)?, cap)?;
             // Hitting the user's own limit is not truncation; hitting ours is.
-            let truncated = more && limit.filter(|l| *l > 0).map_or(true, |l| l as usize > lim.max_rows);
+            let truncated = more && limit.filter(|l| *l > 0).is_none_or(|l| l as usize > lim.max_rows);
             Ok(table_result(docs, truncated, start))
         }
         Op::Aggregate { coll, pipeline } => {
@@ -232,18 +261,41 @@ fn run(client: &Client, db: &str, text: &str, lim: &Limits) -> Result<QueryResul
             }
             let values = d.run().map_err(describe)?;
             let truncated = values.len() > lim.max_rows;
-            let docs = values.into_iter().take(lim.max_rows).map(|v| doc! { field.as_str(): v }).collect();
+            let docs = values
+                .into_iter()
+                .take(lim.max_rows)
+                .map(|v| doc! { field.as_str(): v })
+                .collect();
             Ok(table_result(docs, truncated, start))
         }
         Op::InsertOne { coll, doc: d } => {
-            let r = database.collection::<Document>(&coll).insert_one(d).run().map_err(describe)?;
-            Ok(message_result(format!("1 documento insertado (_id: {})", cell(&r.inserted_id)), start))
+            let r = database
+                .collection::<Document>(&coll)
+                .insert_one(d)
+                .run()
+                .map_err(describe)?;
+            Ok(message_result(
+                format!("1 documento insertado (_id: {})", cell(&r.inserted_id)),
+                start,
+            ))
         }
         Op::InsertMany { coll, docs } => {
-            let r = database.collection::<Document>(&coll).insert_many(docs).run().map_err(describe)?;
-            Ok(message_result(format!("{} documento(s) insertado(s)", r.inserted_ids.len()), start))
+            let r = database
+                .collection::<Document>(&coll)
+                .insert_many(docs)
+                .run()
+                .map_err(describe)?;
+            Ok(message_result(
+                format!("{} documento(s) insertado(s)", r.inserted_ids.len()),
+                start,
+            ))
         }
-        Op::Update { coll, filter, update, many } => {
+        Op::Update {
+            coll,
+            filter,
+            update,
+            many,
+        } => {
             let c = database.collection::<Document>(&coll);
             let r = if many {
                 c.update_many(filter, update).run()
@@ -258,8 +310,16 @@ fn run(client: &Client, db: &str, text: &str, lim: &Limits) -> Result<QueryResul
         }
         Op::Delete { coll, filter, many } => {
             let c = database.collection::<Document>(&coll);
-            let r = if many { c.delete_many(filter).run() } else { c.delete_one(filter).run() }.map_err(describe)?;
-            Ok(message_result(format!("{} documento(s) eliminado(s)", r.deleted_count), start))
+            let r = if many {
+                c.delete_many(filter).run()
+            } else {
+                c.delete_one(filter).run()
+            }
+            .map_err(describe)?;
+            Ok(message_result(
+                format!("{} documento(s) eliminado(s)", r.deleted_count),
+                start,
+            ))
         }
         Op::Command(cmd) => {
             let reply = database.run_command(cmd).run().map_err(describe)?;
@@ -412,7 +472,13 @@ impl Engine {
             })
             .expect("spawn mongodb worker");
 
-        Self { cmd_tx, state, alive, dbs, current }
+        Self {
+            cmd_tx,
+            state,
+            alive,
+            dbs,
+            current,
+        }
     }
 }
 
@@ -441,7 +507,10 @@ impl SqlBackend for Engine {
         self.alive.store(false, Ordering::Relaxed);
     }
     fn select_all_sql(&self, table: &str) -> String {
-        format!("db.getCollection({}).find({{}}).limit(100)", serde_json::to_string(table).unwrap_or_default())
+        format!(
+            "db.getCollection({}).find({{}}).limit(100)",
+            serde_json::to_string(table).unwrap_or_default()
+        )
     }
     fn is_sql(&self) -> bool {
         false
@@ -477,7 +546,12 @@ mod tests {
         assert_eq!(cell(&Bson::Null), "NULL");
         assert_eq!(cell(&Bson::String("a".into())), "a");
         assert_eq!(cell(&Bson::Int32(3)), "3");
-        assert_eq!(cell(&Bson::ObjectId(ObjectId::parse_str("650000000000000000000001").unwrap())), "650000000000000000000001");
+        assert_eq!(
+            cell(&Bson::ObjectId(
+                ObjectId::parse_str("650000000000000000000001").unwrap()
+            )),
+            "650000000000000000000001"
+        );
         assert_eq!(cell(&Bson::Document(doc! { "a": 1 })), "{\"a\":1}");
         assert_eq!(cell(&Bson::Array(vec![Bson::Int32(1), Bson::Int32(2)])), "[1,2]");
     }
@@ -510,7 +584,11 @@ mod tests {
     }
 
     fn lim(max_rows: usize, read_only: bool) -> Limits {
-        Limits { max_rows, max_time: None, read_only }
+        Limits {
+            max_rows,
+            max_time: None,
+            read_only,
+        }
     }
 
     fn wait_for(state: &Mutex<ConsoleState>, what: &str, mut cond: impl FnMut(&ConsoleState) -> bool) {
@@ -539,7 +617,10 @@ mod tests {
         let t = r.table.unwrap();
         assert_eq!(t.columns[0], "_id");
         let nombre = t.columns.iter().position(|c| c == "nombre").unwrap();
-        assert_eq!(t.rows.iter().map(|r| r[nombre].as_str()).collect::<Vec<_>>(), ["Ana", "Eva"]);
+        assert_eq!(
+            t.rows.iter().map(|r| r[nombre].as_str()).collect::<Vec<_>>(),
+            ["Ana", "Eva"]
+        );
         assert_eq!(r.message, "2 documentos");
 
         // Arrays render as JSON; a field missing from some documents is blank.
@@ -557,8 +638,18 @@ mod tests {
 
         let r = go("db.persona.aggregate([{$group: {_id: null, total: {$sum: '$edad'}}}])").unwrap();
         assert_eq!(r.table.unwrap().rows[0][1], "96");
-        assert_eq!(go("db.persona.countDocuments({edad: {$lt: 40}})").unwrap().table.unwrap().rows[0][0], "2");
-        assert_eq!(go("db.persona.distinct('nombre')").unwrap().table.unwrap().rows.len(), 3);
+        assert_eq!(
+            go("db.persona.countDocuments({edad: {$lt: 40}})")
+                .unwrap()
+                .table
+                .unwrap()
+                .rows[0][0],
+            "2"
+        );
+        assert_eq!(
+            go("db.persona.distinct('nombre')").unwrap().table.unwrap().rows.len(),
+            3
+        );
 
         // ObjectId round trip through the helper.
         let r = go("db.persona.findOne({nombre: 'Luis'})").unwrap();
@@ -592,10 +683,16 @@ mod tests {
         let Some(mut opts) = live() else { return };
         let c = connect(&opts).unwrap();
         let ro = lim(10, true);
-        assert!(run(&c, "rusio_t", "db.x.insertOne({a: 1})", &ro).unwrap_err().contains("solo lectura"));
-        assert!(run(&c, "rusio_t", "{drop: 'x'}", &ro).unwrap_err().contains("solo lectura"));
+        assert!(run(&c, "rusio_t", "db.x.insertOne({a: 1})", &ro)
+            .unwrap_err()
+            .contains("solo lectura"));
+        assert!(run(&c, "rusio_t", "{drop: 'x'}", &ro)
+            .unwrap_err()
+            .contains("solo lectura"));
         assert!(run(&c, "rusio_t", "db.x.find()", &ro).is_ok());
-        assert!(run(&c, "", "db.x.find()", &lim(10, false)).unwrap_err().contains("selector"));
+        assert!(run(&c, "", "db.x.find()", &lim(10, false))
+            .unwrap_err()
+            .contains("selector"));
 
         opts.host = "127.0.0.1".to_string();
         opts.port = 1; // nothing listens here
@@ -607,20 +704,34 @@ mod tests {
     fn live_worker_switches_database() {
         let Some(mut opts) = live() else { return };
         let c = connect(&opts).unwrap();
-        c.database("rusio_t3").collection::<Document>("solo_aqui").insert_one(doc! { "a": 1 }).run().unwrap();
+        c.database("rusio_t3")
+            .collection::<Document>("solo_aqui")
+            .insert_one(doc! { "a": 1 })
+            .run()
+            .unwrap();
         opts.database = String::new();
 
         let engine = Engine::start(connect(&opts).unwrap(), opts.clone(), 100, || {});
         let state = engine.state();
         assert!(engine.databases().contains(&"rusio_t3".to_string()));
-        assert!(state.lock().result.as_ref().unwrap().message.contains("No hay una base"));
+        assert!(state
+            .lock()
+            .result
+            .as_ref()
+            .unwrap()
+            .message
+            .contains("No hay una base"));
 
         engine.switch_database("rusio_t3");
-        wait_for(&state, "switch", |s| !s.busy && s.tables.iter().any(|t| t.name == "solo_aqui"));
+        wait_for(&state, "switch", |s| {
+            !s.busy && s.tables.iter().any(|t| t.name == "solo_aqui")
+        });
         assert_eq!(engine.current_database(), "rusio_t3");
 
         engine.run("db.solo_aqui.find()".into());
-        wait_for(&state, "query", |s| !s.busy && s.result.as_ref().is_some_and(|r| r.message == "1 documento"));
+        wait_for(&state, "query", |s| {
+            !s.busy && s.result.as_ref().is_some_and(|r| r.message == "1 documento")
+        });
         engine.close();
         c.database("rusio_t3").drop().run().unwrap();
     }
@@ -628,7 +739,9 @@ mod tests {
     // RUSIO_MONGO_AUTH="usuario:clave" for a server started with --auth (user in the admin db).
     #[test]
     fn live_authentication_accepts_the_password_and_rejects_a_wrong_one() {
-        let (Some(mut opts), Ok(cred)) = (live(), std::env::var("RUSIO_MONGO_AUTH")) else { return };
+        let (Some(mut opts), Ok(cred)) = (live(), std::env::var("RUSIO_MONGO_AUTH")) else {
+            return;
+        };
         let (user, pass) = cred.split_once(':').unwrap();
         opts.user = user.to_string();
         opts.password = Some(pass.to_string());

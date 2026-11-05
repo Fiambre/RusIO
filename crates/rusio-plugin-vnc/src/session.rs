@@ -118,143 +118,141 @@ impl VncSession {
         let framebuffer = Arc::new(Mutex::new(VncFramebuffer::new(1024, 768)));
         let fb_clone = framebuffer.clone();
 
-        thread::Builder::new()
-            .name("vnc-worker".to_string())
-            .spawn(move || {
-                let addr = format!("{}:{}", host, port);
-                let stream = match TcpStream::connect_timeout(
-                    &addr.parse().unwrap_or_else(|_| {
-                        use std::net::ToSocketAddrs;
-                        addr.to_socket_addrs()
-                            .ok()
-                            .and_then(|mut i| i.next())
-                            .unwrap_or_else(|| "127.0.0.1:5900".parse().unwrap())
-                    }),
-                    Duration::from_secs(10),
-                ) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        *status_clone.lock() = format!("Failed to connect: {}", e);
-                        is_alive_clone.store(false, Ordering::Relaxed);
-                        repaint_signal();
-                        return;
-                    }
-                };
+        thread::Builder::new().name("vnc-worker".to_string()).spawn(move || {
+            let addr = format!("{}:{}", host, port);
+            let stream = match TcpStream::connect_timeout(
+                &addr.parse().unwrap_or_else(|_| {
+                    use std::net::ToSocketAddrs;
+                    addr.to_socket_addrs()
+                        .ok()
+                        .and_then(|mut i| i.next())
+                        .unwrap_or_else(|| "127.0.0.1:5900".parse().unwrap())
+                }),
+                Duration::from_secs(10),
+            ) {
+                Ok(s) => s,
+                Err(e) => {
+                    *status_clone.lock() = format!("Failed to connect: {}", e);
+                    is_alive_clone.store(false, Ordering::Relaxed);
+                    repaint_signal();
+                    return;
+                }
+            };
 
-                let pass_copy = password.clone();
-                let client_res = Client::from_tcp_stream(stream, true, move |methods| {
-                    let has_none = methods.iter().any(|m| matches!(m, AuthMethod::None));
-                    let has_password = methods.iter().any(|m| matches!(m, AuthMethod::Password));
+            let pass_copy = password.clone();
+            let client_res = Client::from_tcp_stream(stream, true, move |methods| {
+                let has_none = methods.iter().any(|m| matches!(m, AuthMethod::None));
+                let has_password = methods.iter().any(|m| matches!(m, AuthMethod::Password));
 
-                    if has_none {
-                        Some(AuthChoice::None)
-                    } else if has_password {
-                        if let Some(ref pass) = pass_copy {
-                            let mut key = [0u8; 8];
-                            let bytes = pass.as_bytes();
-                            let len = bytes.len().min(8);
-                            key[..len].copy_from_slice(&bytes[..len]);
-                            Some(AuthChoice::Password(key))
-                        } else {
-                            Some(AuthChoice::Password([0u8; 8]))
-                        }
+                if has_none {
+                    Some(AuthChoice::None)
+                } else if has_password {
+                    if let Some(ref pass) = pass_copy {
+                        let mut key = [0u8; 8];
+                        let bytes = pass.as_bytes();
+                        let len = bytes.len().min(8);
+                        key[..len].copy_from_slice(&bytes[..len]);
+                        Some(AuthChoice::Password(key))
                     } else {
-                        None
+                        Some(AuthChoice::Password([0u8; 8]))
                     }
-                });
+                } else {
+                    None
+                }
+            });
 
-                let mut client = match client_res {
-                    Ok(c) => c,
-                    Err(e) => {
-                        *status_clone.lock() = format!("VNC Auth/Protocol error: {:?}", e);
-                        is_alive_clone.store(false, Ordering::Relaxed);
-                        repaint_signal();
-                        return;
-                    }
-                };
+            let mut client = match client_res {
+                Ok(c) => c,
+                Err(e) => {
+                    *status_clone.lock() = format!("VNC Auth/Protocol error: {:?}", e);
+                    is_alive_clone.store(false, Ordering::Relaxed);
+                    repaint_signal();
+                    return;
+                }
+            };
 
-                let (w, h) = client.size();
-                fb_clone.lock().resize(w as usize, h as usize);
-                *status_clone.lock() = format!("Connected ({}x{})", w, h);
-                repaint_signal();
+            let (w, h) = client.size();
+            fb_clone.lock().resize(w as usize, h as usize);
+            *status_clone.lock() = format!("Connected ({}x{})", w, h);
+            repaint_signal();
 
-                // Request initial full screen update
-                let full_rect = Rect {
-                    left: 0,
-                    top: 0,
-                    width: w,
-                    height: h,
-                };
-                let _ = client.request_update(full_rect, false);
+            // Request initial full screen update
+            let full_rect = Rect {
+                left: 0,
+                top: 0,
+                width: w,
+                height: h,
+            };
+            let _ = client.request_update(full_rect, false);
 
-                while is_alive_clone.load(Ordering::Relaxed) {
-                    // Check user input actions
-                    while let Ok(action) = action_rx.try_recv() {
-                        match action {
-                            VncAction::Pointer { buttons, x, y } => {
-                                let _ = client.send_pointer_event(buttons, x, y);
-                            }
-                            VncAction::Key { down, key } => {
-                                let _ = client.send_key_event(down, key);
-                            }
-                            VncAction::Close => {
-                                let _ = client.disconnect();
-                                is_alive_clone.store(false, Ordering::Relaxed);
-                                return;
-                            }
+            while is_alive_clone.load(Ordering::Relaxed) {
+                // Check user input actions
+                while let Ok(action) = action_rx.try_recv() {
+                    match action {
+                        VncAction::Pointer { buttons, x, y } => {
+                            let _ = client.send_pointer_event(buttons, x, y);
                         }
-                    }
-
-                    // Poll VNC events
-                    let mut got_event = false;
-                    while let Some(event) = client.poll_event() {
-                        got_event = true;
-                        match event {
-                            Event::Resize(new_w, new_h) => {
-                                fb_clone.lock().resize(new_w as usize, new_h as usize);
-                                let _ = client.request_update(
-                                    Rect {
-                                        left: 0,
-                                        top: 0,
-                                        width: new_w,
-                                        height: new_h,
-                                    },
-                                    false,
-                                );
-                                repaint_signal();
-                            }
-                            Event::PutPixels(rect, pixels) => {
-                                fb_clone.lock().put_pixels(rect, &pixels);
-                            }
-                            Event::EndOfFrame => {
-                                repaint_signal();
-                                // Request incremental update
-                                let sz = client.size();
-                                let _ = client.request_update(
-                                    Rect {
-                                        left: 0,
-                                        top: 0,
-                                        width: sz.0,
-                                        height: sz.1,
-                                    },
-                                    true,
-                                );
-                            }
-                            Event::Disconnected(err) => {
-                                *status_clone.lock() = format!("Disconnected: {:?}", err);
-                                is_alive_clone.store(false, Ordering::Relaxed);
-                                repaint_signal();
-                                return;
-                            }
-                            _ => {}
+                        VncAction::Key { down, key } => {
+                            let _ = client.send_key_event(down, key);
                         }
-                    }
-
-                    if !got_event {
-                        thread::sleep(Duration::from_millis(15));
+                        VncAction::Close => {
+                            let _ = client.disconnect();
+                            is_alive_clone.store(false, Ordering::Relaxed);
+                            return;
+                        }
                     }
                 }
-            })?;
+
+                // Poll VNC events
+                let mut got_event = false;
+                while let Some(event) = client.poll_event() {
+                    got_event = true;
+                    match event {
+                        Event::Resize(new_w, new_h) => {
+                            fb_clone.lock().resize(new_w as usize, new_h as usize);
+                            let _ = client.request_update(
+                                Rect {
+                                    left: 0,
+                                    top: 0,
+                                    width: new_w,
+                                    height: new_h,
+                                },
+                                false,
+                            );
+                            repaint_signal();
+                        }
+                        Event::PutPixels(rect, pixels) => {
+                            fb_clone.lock().put_pixels(rect, &pixels);
+                        }
+                        Event::EndOfFrame => {
+                            repaint_signal();
+                            // Request incremental update
+                            let sz = client.size();
+                            let _ = client.request_update(
+                                Rect {
+                                    left: 0,
+                                    top: 0,
+                                    width: sz.0,
+                                    height: sz.1,
+                                },
+                                true,
+                            );
+                        }
+                        Event::Disconnected(err) => {
+                            *status_clone.lock() = format!("Disconnected: {:?}", err);
+                            is_alive_clone.store(false, Ordering::Relaxed);
+                            repaint_signal();
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+
+                if !got_event {
+                    thread::sleep(Duration::from_millis(15));
+                }
+            }
+        })?;
 
         Ok(Self {
             framebuffer,

@@ -44,15 +44,34 @@ pub struct SftpOptions {
 }
 
 pub enum SftpCmd {
-    ReadFile { path: String, reply: Sender<Result<Vec<u8>, String>> },
-    WriteFile { path: String, data: Vec<u8>, reply: Sender<Result<(), String>> },
+    ReadFile {
+        path: String,
+        reply: Sender<Result<Vec<u8>, String>>,
+    },
+    WriteFile {
+        path: String,
+        data: Vec<u8>,
+        reply: Sender<Result<(), String>>,
+    },
     List(String),
-    Download { remote: String, local: PathBuf },
-    Upload { local: PathBuf, remote_dir: String },
+    Download {
+        remote: String,
+        local: PathBuf,
+    },
+    Upload {
+        local: PathBuf,
+        remote_dir: String,
+    },
     Mkdir(String),
     CreateFile(String),
-    Remove { path: String, is_dir: bool },
-    Rename { from: String, to: String },
+    Remove {
+        path: String,
+        is_dir: bool,
+    },
+    Rename {
+        from: String,
+        to: String,
+    },
     Close,
 }
 
@@ -187,12 +206,7 @@ fn list_dir(sftp: &Sftp, path: &str) -> Result<(String, Vec<SftpEntry>), String>
     Ok((real_s, entries))
 }
 
-fn download_path(
-    sftp: &Sftp,
-    remote: &str,
-    local: &Path,
-    busy: &dyn Fn(String),
-) -> Result<(), String> {
+fn download_path(sftp: &Sftp, remote: &str, local: &Path, busy: &dyn Fn(String)) -> Result<(), String> {
     let stat = sftp.stat(Path::new(remote)).map_err(es)?;
     if stat.is_dir() {
         std::fs::create_dir_all(local).map_err(es)?;
@@ -231,12 +245,7 @@ fn download_path(
     Ok(())
 }
 
-fn upload_path(
-    sftp: &Sftp,
-    local: &Path,
-    remote: &str,
-    busy: &dyn Fn(String),
-) -> Result<(), String> {
+fn upload_path(sftp: &Sftp, local: &Path, remote: &str, busy: &dyn Fn(String)) -> Result<(), String> {
     if local.is_dir() {
         let _ = sftp.mkdir(Path::new(remote), 0o755);
         for entry in std::fs::read_dir(local).map_err(es)? {
@@ -352,163 +361,160 @@ impl SftpSession {
         let st = state.clone();
         let alive = is_alive.clone();
 
-        thread::Builder::new()
-            .name("sftp-worker".to_string())
-            .spawn(move || {
-                let fail = |msg: String| {
-                    {
-                        let mut s = st.lock();
-                        s.connected = false;
-                        s.status = msg;
-                        s.is_error = true;
-                        s.busy = None;
-                    }
-                    alive.store(false, Ordering::Relaxed);
-                    repaint();
-                };
-
-                let sess = match open_session(&host, port, &username, &auth, &opts) {
-                    Ok(s) => s,
-                    Err(e) => return fail(format!("Error de conexión: {}", e)),
-                };
-                let sftp = match sess.sftp() {
-                    Ok(s) => s,
-                    Err(e) => return fail(format!("No se pudo iniciar SFTP: {}", e)),
-                };
-
-                match list_dir(&sftp, ".") {
-                    Ok((cwd, entries)) => {
-                        let mut s = st.lock();
-                        s.connected = true;
-                        s.cwd = cwd;
-                        s.entries = entries;
-                        s.status = format!("Conectado a {}", host);
-                        s.is_error = false;
-                    }
-                    Err(e) => return fail(format!("No se pudo listar el directorio: {}", e)),
+        thread::Builder::new().name("sftp-worker".to_string()).spawn(move || {
+            let fail = |msg: String| {
+                {
+                    let mut s = st.lock();
+                    s.connected = false;
+                    s.status = msg;
+                    s.is_error = true;
+                    s.busy = None;
                 }
+                alive.store(false, Ordering::Relaxed);
                 repaint();
+            };
 
-                let busy = |msg: String| {
-                    st.lock().busy = Some(msg);
-                    repaint();
+            let sess = match open_session(&host, port, &username, &auth, &opts) {
+                Ok(s) => s,
+                Err(e) => return fail(format!("Error de conexión: {}", e)),
+            };
+            let sftp = match sess.sftp() {
+                Ok(s) => s,
+                Err(e) => return fail(format!("No se pudo iniciar SFTP: {}", e)),
+            };
+
+            match list_dir(&sftp, ".") {
+                Ok((cwd, entries)) => {
+                    let mut s = st.lock();
+                    s.connected = true;
+                    s.cwd = cwd;
+                    s.entries = entries;
+                    s.status = format!("Conectado a {}", host);
+                    s.is_error = false;
+                }
+                Err(e) => return fail(format!("No se pudo listar el directorio: {}", e)),
+            }
+            repaint();
+
+            let busy = |msg: String| {
+                st.lock().busy = Some(msg);
+                repaint();
+            };
+
+            while alive.load(Ordering::Relaxed) {
+                let cmd = match cmd_rx.recv_timeout(Duration::from_secs(5)) {
+                    Ok(c) => c,
+                    Err(RecvTimeoutError::Timeout) => {
+                        let _ = sess.keepalive_send();
+                        continue;
+                    }
+                    Err(RecvTimeoutError::Disconnected) => break,
                 };
 
-                while alive.load(Ordering::Relaxed) {
-                    let cmd = match cmd_rx.recv_timeout(Duration::from_secs(5)) {
-                        Ok(c) => c,
-                        Err(RecvTimeoutError::Timeout) => {
-                            let _ = sess.keepalive_send();
-                            continue;
-                        }
-                        Err(RecvTimeoutError::Disconnected) => break,
-                    };
+                let cwd = st.lock().cwd.clone();
+                let (target, result): (String, Result<String, String>) = match cmd {
+                    SftpCmd::Close => break,
+                    SftpCmd::ReadFile { path, reply } => {
+                        busy(format!("Abriendo {}...", path));
+                        let r = read_file(&sftp, &path, opts.edit_max_bytes);
+                        st.lock().busy = None;
+                        let _ = reply.send(r);
+                        repaint();
+                        continue;
+                    }
+                    SftpCmd::WriteFile { path, data, reply } => {
+                        busy(format!("Guardando {}...", path));
+                        let r = write_file(&sftp, &path, &data);
+                        st.lock().busy = None;
+                        let _ = reply.send(r);
+                        repaint();
+                        continue;
+                    }
+                    SftpCmd::List(p) => (p, Ok(String::new())),
+                    SftpCmd::Download { remote, local } => {
+                        busy(format!("Descargando {}...", remote));
+                        let r = download_path(&sftp, &remote, &local, &busy)
+                            .map(|_| format!("Descargado en {}", local.display()));
+                        (cwd, r)
+                    }
+                    SftpCmd::Upload { local, remote_dir } => {
+                        let name = local
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                            .unwrap_or_default();
+                        busy(format!("Subiendo {}...", name));
+                        let r = upload_path(&sftp, &local, &join(&remote_dir, &name), &busy)
+                            .map(|_| format!("Subido {}", name));
+                        (remote_dir, r)
+                    }
+                    SftpCmd::Mkdir(path) => {
+                        let r = sftp
+                            .mkdir(Path::new(&path), 0o755)
+                            .map(|_| "Carpeta creada".to_string())
+                            .map_err(es);
+                        (cwd, r)
+                    }
+                    SftpCmd::CreateFile(path) => {
+                        let r = if sftp.stat(Path::new(&path)).is_ok() {
+                            Err("Ya existe un elemento con ese nombre".to_string())
+                        } else {
+                            sftp.create(Path::new(&path))
+                                .map(|_| "Archivo creado".to_string())
+                                .map_err(es)
+                        };
+                        (cwd, r)
+                    }
+                    SftpCmd::Remove { path, is_dir } => {
+                        busy(format!("Eliminando {}...", path));
+                        let r = remove_path(&sftp, &path, is_dir).map(|_| "Eliminado".to_string());
+                        (cwd, r)
+                    }
+                    SftpCmd::Rename { from, to } => {
+                        let r = sftp
+                            .rename(Path::new(&from), Path::new(&to), None)
+                            .map(|_| "Renombrado".to_string())
+                            .map_err(es);
+                        (cwd, r)
+                    }
+                };
 
-                    let cwd = st.lock().cwd.clone();
-                    let (target, result): (String, Result<String, String>) = match cmd {
-                        SftpCmd::Close => break,
-                        SftpCmd::ReadFile { path, reply } => {
-                            busy(format!("Abriendo {}...", path));
-                            let r = read_file(&sftp, &path, opts.edit_max_bytes);
-                            st.lock().busy = None;
-                            let _ = reply.send(r);
-                            repaint();
-                            continue;
-                        }
-                        SftpCmd::WriteFile { path, data, reply } => {
-                            busy(format!("Guardando {}...", path));
-                            let r = write_file(&sftp, &path, &data);
-                            st.lock().busy = None;
-                            let _ = reply.send(r);
-                            repaint();
-                            continue;
-                        }
-                        SftpCmd::List(p) => (p, Ok(String::new())),
-                        SftpCmd::Download { remote, local } => {
-                            busy(format!("Descargando {}...", remote));
-                            let r = download_path(&sftp, &remote, &local, &busy)
-                                .map(|_| format!("Descargado en {}", local.display()));
-                            (cwd, r)
-                        }
-                        SftpCmd::Upload { local, remote_dir } => {
-                            let name = local
-                                .file_name()
-                                .map(|n| n.to_string_lossy().to_string())
-                                .unwrap_or_default();
-                            busy(format!("Subiendo {}...", name));
-                            let r = upload_path(&sftp, &local, &join(&remote_dir, &name), &busy)
-                                .map(|_| format!("Subido {}", name));
-                            (remote_dir, r)
-                        }
-                        SftpCmd::Mkdir(path) => {
-                            let r = sftp
-                                .mkdir(Path::new(&path), 0o755)
-                                .map(|_| "Carpeta creada".to_string())
-                                .map_err(es);
-                            (cwd, r)
-                        }
-                        SftpCmd::CreateFile(path) => {
-                            let r = if sftp.stat(Path::new(&path)).is_ok() {
-                                Err("Ya existe un elemento con ese nombre".to_string())
-                            } else {
-                                sftp.create(Path::new(&path))
-                                    .map(|_| "Archivo creado".to_string())
-                                    .map_err(es)
-                            };
-                            (cwd, r)
-                        }
-                        SftpCmd::Remove { path, is_dir } => {
-                            busy(format!("Eliminando {}...", path));
-                            let r = remove_path(&sftp, &path, is_dir)
-                                .map(|_| "Eliminado".to_string());
-                            (cwd, r)
-                        }
-                        SftpCmd::Rename { from, to } => {
-                            let r = sftp
-                                .rename(Path::new(&from), Path::new(&to), None)
-                                .map(|_| "Renombrado".to_string())
-                                .map_err(es);
-                            (cwd, r)
-                        }
-                    };
-
-                    let listing = list_dir(&sftp, &target);
-                    let result_err = result.as_ref().err().cloned();
-                    {
-                        let mut s = st.lock();
-                        s.busy = None;
-                        match (&result, listing) {
-                            (_, Ok((new_cwd, entries))) => {
-                                s.cwd = new_cwd;
-                                s.entries = entries;
-                                match &result {
-                                    Ok(msg) if !msg.is_empty() => {
-                                        s.status = msg.clone();
-                                        s.is_error = false;
-                                    }
-                                    Err(e) => {
-                                        s.status = format!("Error: {}", e);
-                                        s.is_error = true;
-                                    }
-                                    _ => {
-                                        s.status = String::new();
-                                        s.is_error = false;
-                                    }
+                let listing = list_dir(&sftp, &target);
+                let result_err = result.as_ref().err().cloned();
+                {
+                    let mut s = st.lock();
+                    s.busy = None;
+                    match (&result, listing) {
+                        (_, Ok((new_cwd, entries))) => {
+                            s.cwd = new_cwd;
+                            s.entries = entries;
+                            match &result {
+                                Ok(msg) if !msg.is_empty() => {
+                                    s.status = msg.clone();
+                                    s.is_error = false;
+                                }
+                                Err(e) => {
+                                    s.status = format!("Error: {}", e);
+                                    s.is_error = true;
+                                }
+                                _ => {
+                                    s.status = String::new();
+                                    s.is_error = false;
                                 }
                             }
-                            (_, Err(e)) => {
-                                s.status = format!("Error: {}", result_err.unwrap_or(e));
-                                s.is_error = true;
-                            }
+                        }
+                        (_, Err(e)) => {
+                            s.status = format!("Error: {}", result_err.unwrap_or(e));
+                            s.is_error = true;
                         }
                     }
-                    repaint();
                 }
-
-                alive.store(false, Ordering::Relaxed);
-                st.lock().connected = false;
                 repaint();
-            })?;
+            }
+
+            alive.store(false, Ordering::Relaxed);
+            st.lock().connected = false;
+            repaint();
+        })?;
 
         Ok(Self {
             cmd_tx,

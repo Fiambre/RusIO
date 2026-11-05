@@ -79,10 +79,7 @@ fn flush<W: Write>(w: &mut W, pending: &mut Vec<u8>) -> io::Result<bool> {
 impl<U: Upstream> Conn<U> {
     /// Moves what can be moved in both directions. Returns (progress, finished).
     fn pump(&mut self) -> (bool, bool) {
-        match self.try_pump() {
-            Ok(r) => r,
-            Err(_) => (true, true),
-        }
+        self.try_pump().unwrap_or((true, true))
     }
 
     fn try_pump(&mut self) -> io::Result<(bool, bool)> {
@@ -369,7 +366,9 @@ mod tests {
     }
 
     fn pattern(len: usize, seed: u8) -> Vec<u8> {
-        (0..len).map(|i| (i as u8).wrapping_mul(31).wrapping_add(seed)).collect()
+        (0..len)
+            .map(|i| (i as u8).wrapping_mul(31).wrapping_add(seed))
+            .collect()
     }
 
     fn echo_through(port: u16, data: Vec<u8>) -> Vec<u8> {
@@ -436,7 +435,10 @@ mod tests {
             if TcpStream::connect(("127.0.0.1", port)).is_err() {
                 break;
             }
-            assert!(Instant::now() < deadline, "listener still accepting after the guard dropped");
+            assert!(
+                Instant::now() < deadline,
+                "listener still accepting after the guard dropped"
+            );
             thread::sleep(Duration::from_millis(20));
         }
     }

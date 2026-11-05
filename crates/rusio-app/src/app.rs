@@ -1,27 +1,25 @@
-use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, Vec2};
+use crossbeam_channel::{unbounded, Receiver, TryRecvError};
+use eframe::egui::{self, Color32, CornerRadius, RichText, Stroke, Vec2};
 use rusio_core::config::{ConfigStore, ConnectionProfile};
 use rusio_core::settings::Settings;
 use rusio_plugin_api::icons;
-use rusio_plugin_api::{Category, ProtocolIcon};
-use uuid::Uuid;
 use rusio_plugin_api::serde_json::{json, Value};
 use rusio_plugin_api::theme::Theme;
-use rusio_plugin_api::{
-    ConnectRequest, Host, Params, QuickLaunch, SettingField, SettingKind, TextFile,
-};
-use crossbeam_channel::{unbounded, Receiver, TryRecvError};
+use rusio_plugin_api::{Category, ProtocolIcon};
+use rusio_plugin_api::{ConnectRequest, Host, Params, QuickLaunch, SettingField, SettingKind, TextFile};
 use std::any::Any;
 use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
+use uuid::Uuid;
 
 use crate::editor::EditorSession;
 use crate::registry::Registry;
 use crate::session::SessionTab;
 use crate::tunnels;
 use crate::ui::{
-    render_conn_modal, render_new_folder_modal, render_sidebar, render_tabs, titlebar,
-    render_type_picker, ConnEditorState, ModalResult, TypePick, SidebarAction, SidebarState, TabAction,
+    render_conn_modal, render_new_folder_modal, render_sidebar, render_tabs, render_type_picker, titlebar,
+    ConnEditorState, ModalResult, SidebarAction, SidebarState, TabAction, TypePick,
 };
 
 enum PendingDelete {
@@ -99,10 +97,7 @@ impl RusioApp {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         let registry = Arc::new(Registry::builtin());
         let settings = Settings::load();
-        let config = ConfigStore::load(
-            settings.connections_path_or_default(),
-            registry.secret_schema(),
-        );
+        let config = ConfigStore::load(settings.connections_path_or_default(), registry.secret_schema());
         let startup_msg = if config.secrets_unavailable {
             "Aviso: el almacén de credenciales no está disponible; las contraseñas se guardan en el archivo de conexiones."
         } else {
@@ -135,13 +130,7 @@ impl RusioApp {
     }
 
     /// Opens a session of `plugin_id` with the given params (and optional plugin action).
-    fn connect_params(
-        &mut self,
-        plugin_id: &str,
-        params: &Params,
-        action: Option<&str>,
-        ctx: &egui::Context,
-    ) {
+    fn connect_params(&mut self, plugin_id: &str, params: &Params, action: Option<&str>, ctx: &egui::Context) {
         self.connect_params_with(plugin_id, params, action, ctx, Vec::new());
     }
 
@@ -179,12 +168,7 @@ impl RusioApp {
         }
     }
 
-    fn connect_profile(
-        &mut self,
-        profile: &ConnectionProfile,
-        action: Option<&str>,
-        ctx: &egui::Context,
-    ) {
+    fn connect_profile(&mut self, profile: &ConnectionProfile, action: Option<&str>, ctx: &egui::Context) {
         if profile.via.is_none() {
             self.connect_params(&profile.protocol.kind, &profile.protocol.params, action, ctx);
             return;
@@ -237,9 +221,7 @@ impl RusioApp {
         for (i, result) in finished.into_iter().rev() {
             let p = self.pending.remove(i);
             match result {
-                Some(Ok(r)) => {
-                    self.connect_params_with(&p.plugin_id, &r.params, p.action.as_deref(), ctx, r.guards)
-                }
+                Some(Ok(r)) => self.connect_params_with(&p.plugin_id, &r.params, p.action.as_deref(), ctx, r.guards),
                 Some(Err(e)) => self.set_status(format!("Error: {e}")),
                 None => self.set_status("Error: se interrumpió la apertura del túnel.".to_string()),
             }
@@ -433,7 +415,7 @@ impl RusioApp {
     }
 
     pub fn close_tab(&mut self, idx: usize) {
-        if self.tabs.get(idx).map_or(false, |t| t.session.is_dirty()) {
+        if self.tabs.get(idx).is_some_and(|t| t.session.is_dirty()) {
             self.pending_discard = Some(idx);
             return;
         }
@@ -457,7 +439,9 @@ impl RusioApp {
     fn welcome_items(&self) -> Vec<WelcomeItem> {
         let mut items = Vec::new();
         for (plugin_id, q) in self.quick.iter().filter(|(_, q)| q.featured) {
-            let Some(e) = self.registry.get(plugin_id) else { continue };
+            let Some(e) = self.registry.get(plugin_id) else {
+                continue;
+            };
             items.push(WelcomeItem {
                 category: e.def.category,
                 plugin_id,
@@ -488,18 +472,18 @@ impl RusioApp {
 }
 
 /// Draws one plugin setting; returns the new value if the user changed it.
-fn setting_widget(
-    ui: &mut egui::Ui,
-    plugin_id: &str,
-    field: &SettingField,
-    current: &Value,
-) -> Option<Value> {
+fn setting_widget(ui: &mut egui::Ui, plugin_id: &str, field: &SettingField, current: &Value) -> Option<Value> {
     match &field.kind {
         SettingKind::Bool { default } => {
             let mut v = current.as_bool().unwrap_or(*default);
             ui.checkbox(&mut v, "").changed().then(|| json!(v))
         }
-        SettingKind::Int { default, min, max, suffix } => {
+        SettingKind::Int {
+            default,
+            min,
+            max,
+            suffix,
+        } => {
             let mut v = current.as_i64().unwrap_or(*default);
             ui.add(egui::DragValue::new(&mut v).range(*min..=*max).suffix(*suffix))
                 .changed()
@@ -512,10 +496,7 @@ fn setting_widget(
         SettingKind::Choice { default, options } => {
             let cur = current.as_str().unwrap_or(default);
             let mut sel = cur.to_string();
-            let cur_label = options
-                .iter()
-                .find(|(v, _)| *v == cur)
-                .map_or(cur, |(_, l)| *l);
+            let cur_label = options.iter().find(|(v, _)| *v == cur).map_or(cur, |(_, l)| *l);
             egui::ComboBox::from_id_salt((plugin_id, field.key))
                 .selected_text(cur_label)
                 .show_ui(ui, |ui| {
@@ -570,12 +551,7 @@ impl eframe::App for RusioApp {
                     ui.spacing_mut().button_padding = Vec2::new(10.0, 4.0);
                     ui.add_space(12.0);
                     titlebar::paint_logo(ui, 20.0);
-                    ui.label(
-                        RichText::new("RusIO")
-                            .strong()
-                            .size(14.0)
-                            .color(theme.text_primary),
-                    );
+                    ui.label(RichText::new("RusIO").strong().size(14.0).color(theme.text_primary));
                     ui.add_space(14.0);
 
                     if !quick_protos.is_empty() {
@@ -595,8 +571,7 @@ impl eframe::App for RusioApp {
                                 .min_size(Vec2::new(240.0, CTRL_H))
                                 .desired_width(240.0),
                         );
-                        let enter_pressed =
-                            response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        let enter_pressed = response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
                         if ui
                             .add_sized(
@@ -659,7 +634,11 @@ impl eframe::App for RusioApp {
                             RichText::new(format!(
                                 "{} {}",
                                 live_sessions,
-                                if live_sessions == 1 { "sesión activa" } else { "sesiones activas" }
+                                if live_sessions == 1 {
+                                    "sesión activa"
+                                } else {
+                                    "sesiones activas"
+                                }
                             ))
                             .size(11.0)
                             .color(theme.text_muted),
@@ -674,12 +653,7 @@ impl eframe::App for RusioApp {
             .default_size(280.0)
             .size_range(220.0..=450.0)
             .show(root, |ui| {
-                let action = render_sidebar(
-                    ui,
-                    &mut self.config,
-                    &mut self.sidebar_state,
-                    &self.registry,
-                );
+                let action = render_sidebar(ui, &mut self.config, &mut self.sidebar_state, &self.registry);
                 if let Some(action) = action {
                     match action {
                         SidebarAction::ConnectProfile(profile, plugin_action) => {
@@ -726,9 +700,7 @@ impl eframe::App for RusioApp {
             Vec::new()
         };
         egui::CentralPanel::default().show(root, |ui| {
-            if let Some(tab_action) =
-                render_tabs(ui, &self.tabs, self.active_tab_idx, &self.quick)
-            {
+            if let Some(tab_action) = render_tabs(ui, &self.tabs, self.active_tab_idx, &self.quick) {
                 match tab_action {
                     TabAction::SelectTab(idx) => {
                         self.active_tab_idx = Some(idx);
@@ -753,88 +725,81 @@ impl eframe::App for RusioApp {
                 // Empty state: welcome dashboard
                 let mut clicked: Option<WelcomeAction> = None;
                 egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(40.0);
-                    titlebar::paint_logo(ui, 56.0);
-                    ui.add_space(8.0);
-                    ui.label(
-                        RichText::new("RusIO")
-                            .size(28.0)
-                            .strong()
-                            .color(theme.text_primary),
-                    );
-                    ui.label(
-                        RichText::new("Cliente SSH y Gestor Remoto Nativo en Rust")
-                            .size(15.0)
-                            .color(theme.text_secondary),
-                    );
-
-                    ui.add_space(30.0);
-
-                    let card_width = 180.0;
-                    let card_height = 110.0;
-                    let frame = egui::Frame::NONE
-                        .fill(theme.bg_panel_alt)
-                        .stroke(Stroke::new(1.0_f32, theme.border))
-                        .corner_radius(CornerRadius::same(8))
-                        .inner_margin(egui::Margin::same(14));
-
-                    for cat in Category::ALL {
-                        let in_cat: Vec<&WelcomeItem> = welcome.iter().filter(|i| i.category == cat).collect();
-                        if in_cat.is_empty() {
-                            continue;
-                        }
-                        ui.add_space(6.0);
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(40.0);
+                        titlebar::paint_logo(ui, 56.0);
+                        ui.add_space(8.0);
+                        ui.label(RichText::new("RusIO").size(28.0).strong().color(theme.text_primary));
                         ui.label(
-                            RichText::new(cat.label().to_uppercase())
-                                .size(11.0)
-                                .strong()
-                                .color(theme.text_muted),
+                            RichText::new("Cliente SSH y Gestor Remoto Nativo en Rust")
+                                .size(15.0)
+                                .color(theme.text_secondary),
                         );
-                        ui.add_space(4.0);
-                        // Rows of equal cards, centered as a block.
-                        let gap = 14.0;
-                        let cell = card_width + 28.0 + gap; // card + inner margins + gap
-                        let per_row = (((ui.available_width() + gap) / cell) as usize).max(1);
-                        for row in in_cat.chunks(per_row) {
-                            ui.horizontal_top(|ui| {
-                                ui.spacing_mut().item_spacing = Vec2::new(gap, gap);
-                                let used = row.len() as f32 * cell - gap;
-                                ui.add_space(((ui.available_width() - used) / 2.0).max(0.0));
-                                for item in row {
-                                    frame.show(ui, |ui| {
-                                        ui.set_width(card_width);
-                                        ui.set_height(card_height);
-                                        ui.vertical_centered(|ui| {
-                                            icons::protocol_icon(ui, item.plugin_id, item.icon, item.color, 26.0);
-                                            ui.label(RichText::new(&item.title).strong().size(14.0));
-                                            ui.label(
-                                                RichText::new(&item.subtitle)
-                                                    .size(11.0)
-                                                    .color(theme.text_muted),
-                                            );
-                                            ui.add_space(4.0);
-                                            if ui
-                                                .button(RichText::new(item.button).color(Color32::WHITE))
-                                                .clicked()
-                                            {
-                                                clicked = Some(item.action.clone());
-                                            }
-                                        });
-                                    });
-                                }
-                            });
-                            ui.add_space(gap - 4.0);
-                        }
-                    }
 
-                    ui.add_space(30.0);
-                    ui.label(
-                        RichText::new("Selecciona una conexión en el gestor de carpetas de la izquierda o crea una nueva.")
+                        ui.add_space(30.0);
+
+                        let card_width = 180.0;
+                        let card_height = 110.0;
+                        let frame = egui::Frame::NONE
+                            .fill(theme.bg_panel_alt)
+                            .stroke(Stroke::new(1.0_f32, theme.border))
+                            .corner_radius(CornerRadius::same(8))
+                            .inner_margin(egui::Margin::same(14));
+
+                        for cat in Category::ALL {
+                            let in_cat: Vec<&WelcomeItem> = welcome.iter().filter(|i| i.category == cat).collect();
+                            if in_cat.is_empty() {
+                                continue;
+                            }
+                            ui.add_space(6.0);
+                            ui.label(
+                                RichText::new(cat.label().to_uppercase())
+                                    .size(11.0)
+                                    .strong()
+                                    .color(theme.text_muted),
+                            );
+                            ui.add_space(4.0);
+                            // Rows of equal cards, centered as a block.
+                            let gap = 14.0;
+                            let cell = card_width + 28.0 + gap; // card + inner margins + gap
+                            let per_row = (((ui.available_width() + gap) / cell) as usize).max(1);
+                            for row in in_cat.chunks(per_row) {
+                                ui.horizontal_top(|ui| {
+                                    ui.spacing_mut().item_spacing = Vec2::new(gap, gap);
+                                    let used = row.len() as f32 * cell - gap;
+                                    ui.add_space(((ui.available_width() - used) / 2.0).max(0.0));
+                                    for item in row {
+                                        frame.show(ui, |ui| {
+                                            ui.set_width(card_width);
+                                            ui.set_height(card_height);
+                                            ui.vertical_centered(|ui| {
+                                                icons::protocol_icon(ui, item.plugin_id, item.icon, item.color, 26.0);
+                                                ui.label(RichText::new(&item.title).strong().size(14.0));
+                                                ui.label(
+                                                    RichText::new(&item.subtitle).size(11.0).color(theme.text_muted),
+                                                );
+                                                ui.add_space(4.0);
+                                                if ui.button(RichText::new(item.button).color(Color32::WHITE)).clicked()
+                                                {
+                                                    clicked = Some(item.action.clone());
+                                                }
+                                            });
+                                        });
+                                    }
+                                });
+                                ui.add_space(gap - 4.0);
+                            }
+                        }
+
+                        ui.add_space(30.0);
+                        ui.label(
+                            RichText::new(
+                                "Selecciona una conexión en el gestor de carpetas de la izquierda o crea una nueva.",
+                            )
                             .size(12.0)
                             .color(theme.text_muted),
-                    );
-                });
+                        );
+                    });
                 });
 
                 match clicked {
@@ -842,8 +807,7 @@ impl eframe::App for RusioApp {
                         self.connect_params(plugin_id, &params, None, ctx);
                     }
                     Some(WelcomeAction::NewConnection(plugin_id)) => {
-                        self.modal_editor =
-                            Some(ConnEditorState::new(&self.registry, Some(plugin_id)));
+                        self.modal_editor = Some(ConnEditorState::new(&self.registry, Some(plugin_id)));
                     }
                     None => {}
                 }
@@ -911,11 +875,7 @@ impl eframe::App for RusioApp {
         }
 
         if let Some(idx) = self.pending_discard.take() {
-            let name = self
-                .tabs
-                .get(idx)
-                .map(|t| t.display_title())
-                .unwrap_or_default();
+            let name = self.tabs.get(idx).map(|t| t.display_title()).unwrap_or_default();
             let mut discard = false;
             let mut cancelled = false;
             egui::Window::new("Cambios sin guardar")
@@ -954,14 +914,8 @@ impl eframe::App for RusioApp {
 
         if let Some(pending) = self.pending_delete.take() {
             let (title, detail) = match &pending {
-                PendingDelete::Connection(_, n) => (
-                    "Eliminar conexión",
-                    format!("¿Eliminar la conexión \"{}\"?", n),
-                ),
-                PendingDelete::Folder(_, n) => (
-                    "Eliminar carpeta",
-                    format!("¿Eliminar la carpeta \"{}\"?", n),
-                ),
+                PendingDelete::Connection(_, n) => ("Eliminar conexión", format!("¿Eliminar la conexión \"{}\"?", n)),
+                PendingDelete::Folder(_, n) => ("Eliminar carpeta", format!("¿Eliminar la carpeta \"{}\"?", n)),
             };
             let mut confirmed = false;
             let mut cancelled = false;
@@ -978,10 +932,7 @@ impl eframe::App for RusioApp {
                     );
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui
-                            .button(RichText::new("Eliminar").color(Color32::WHITE))
-                            .clicked()
-                        {
+                        if ui.button(RichText::new("Eliminar").color(Color32::WHITE)).clicked() {
                             confirmed = true;
                         }
                         if ui.button("Cancelar").clicked() {

@@ -1,4 +1,4 @@
-use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, Vec2};
+use eframe::egui::{self, Color32, CornerRadius, RichText, Stroke, Vec2};
 
 use rusio_plugin_api::icons::{self, Icon};
 use rusio_plugin_api::theme::Theme;
@@ -10,7 +10,10 @@ pub enum TabAction {
     SelectTab(usize),
     CloseTab(usize),
     /// Open a one-click session of the given protocol.
-    Quick { plugin_id: &'static str, params: Params },
+    Quick {
+        plugin_id: &'static str,
+        params: Params,
+    },
     OpenQuickConnect,
 }
 
@@ -33,11 +36,20 @@ pub fn render_tabs(
             let (proto_text, proto_color) = tab.session.badge();
             let full_title = tab.display_title();
 
-            let bg_color = if is_selected { theme.bg_panel_alt } else { Color32::TRANSPARENT };
+            let bg_color = if is_selected {
+                theme.bg_panel_alt
+            } else {
+                Color32::TRANSPARENT
+            };
 
             let frame = egui::Frame::NONE
                 .fill(bg_color)
-                .corner_radius(CornerRadius { nw: 6, ne: 6, sw: 0, se: 0 })
+                .corner_radius(CornerRadius {
+                    nw: 6,
+                    ne: 6,
+                    sw: 0,
+                    se: 0,
+                })
                 .inner_margin(egui::Margin::symmetric(10, 6));
 
             let out = frame.show(ui, |ui| {
@@ -46,7 +58,11 @@ pub fn render_tabs(
                     ui.painter().circle_filled(
                         dot.center(),
                         3.0,
-                        if is_alive { theme.status_online } else { theme.status_offline },
+                        if is_alive {
+                            theme.status_online
+                        } else {
+                            theme.status_offline
+                        },
                     );
 
                     let proto_resp = ui.add(
@@ -65,11 +81,11 @@ pub fn render_tabs(
                     };
 
                     let title_resp = ui.add(
-                        egui::Label::new(
-                            RichText::new(title_text)
-                                .size(12.0)
-                                .color(if is_selected { Color32::WHITE } else { theme.text_secondary }),
-                        )
+                        egui::Label::new(RichText::new(title_text).size(12.0).color(if is_selected {
+                            Color32::WHITE
+                        } else {
+                            theme.text_secondary
+                        }))
                         .selectable(false)
                         .sense(egui::Sense::click()),
                     );
@@ -94,10 +110,7 @@ pub fn render_tabs(
 
         // New Tab '+' button
         ui.menu_button(
-            RichText::new(" + ")
-                .size(12.0)
-                .strong()
-                .color(theme.accent_primary),
+            RichText::new(" + ").size(12.0).strong().color(theme.accent_primary),
             |ui| {
                 ui.set_min_width(180.0);
                 ui.label(
@@ -120,10 +133,7 @@ pub fn render_tabs(
 
                 ui.separator();
 
-                if ui
-                    .button("Nueva conexión...")
-                    .clicked()
-                {
+                if ui.button("Nueva conexión...").clicked() {
                     triggered_action = Some(TabAction::OpenQuickConnect);
                     ui.close();
                 }

@@ -1,4 +1,4 @@
-use eframe::egui::{self, Color32, Rect, RichText, CornerRadius, Sense, Stroke, Vec2};
+use eframe::egui::{self, Color32, CornerRadius, Rect, RichText, Sense, Stroke, Vec2};
 use rusio_core::config::{ConnectionProfile, Folder, ProtocolData};
 use rusio_plugin_api::icons;
 use rusio_plugin_api::theme::Theme;
@@ -34,9 +34,7 @@ impl ConnEditorState {
             name: "Nueva Conexión".to_string(),
             folder_id: None,
             protocol_id: entry.map(|e| e.def.id.to_string()).unwrap_or_default(),
-            params: entry
-                .map(|e| e.plugin.default_params())
-                .unwrap_or(Params::Null),
+            params: entry.map(|e| e.plugin.default_params()).unwrap_or(Params::Null),
             color_tag: "#10b981".to_string(),
             description: String::new(),
             via: None,
@@ -93,17 +91,17 @@ fn reaches(connections: &[ConnectionProfile], start: Option<Uuid>, target: Optio
 }
 
 /// A selectable square showing an icon; returns true when clicked.
-fn icon_choice(
-    ui: &mut egui::Ui,
-    selected: bool,
-    tip: &str,
-    paint: impl FnOnce(&egui::Ui, Rect),
-) -> bool {
+fn icon_choice(ui: &mut egui::Ui, selected: bool, tip: &str, paint: impl FnOnce(&egui::Ui, Rect)) -> bool {
     let theme = Theme::default();
     let (rect, resp) = ui.allocate_exact_size(Vec2::splat(28.0), Sense::click());
     if selected {
         ui.painter().rect_filled(rect, CornerRadius::same(6), theme.bg_active);
-        ui.painter().rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0_f32, theme.accent_primary), egui::StrokeKind::Middle);
+        ui.painter().rect_stroke(
+            rect,
+            CornerRadius::same(6),
+            Stroke::new(1.0_f32, theme.accent_primary),
+            egui::StrokeKind::Middle,
+        );
     } else if resp.hovered() {
         ui.painter().rect_filled(rect, CornerRadius::same(6), theme.bg_hover);
     }
@@ -142,13 +140,20 @@ pub fn render_type_picker(ctx: &egui::Context, registry: &Registry) -> Option<Ty
                     ui.spacing_mut().item_spacing = Vec2::new(10.0, 10.0);
                     for e in entries {
                         let (rect, resp) = ui.allocate_exact_size(Vec2::new(140.0, 76.0), Sense::click());
-                        let fill = if resp.hovered() { theme.bg_hover } else { theme.bg_panel_alt };
+                        let fill = if resp.hovered() {
+                            theme.bg_hover
+                        } else {
+                            theme.bg_panel_alt
+                        };
                         ui.painter().rect_filled(rect, CornerRadius::same(8), fill);
-                        ui.painter().rect_stroke(rect, CornerRadius::same(8), Stroke::new(1.0_f32, theme.border), egui::StrokeKind::Middle);
-                        let icon_rect = Rect::from_center_size(
-                            egui::pos2(rect.center().x, rect.min.y + 24.0),
-                            Vec2::splat(26.0),
+                        ui.painter().rect_stroke(
+                            rect,
+                            CornerRadius::same(8),
+                            Stroke::new(1.0_f32, theme.border),
+                            egui::StrokeKind::Middle,
                         );
+                        let icon_rect =
+                            Rect::from_center_size(egui::pos2(rect.center().x, rect.min.y + 24.0), Vec2::splat(26.0));
                         icons::paint_protocol_icon(ui, e.def.id, e.def.icon, e.def.color, icon_rect);
                         ui.painter().text(
                             egui::pos2(rect.center().x, rect.max.y - 18.0),
@@ -223,10 +228,7 @@ pub fn render_conn_modal(
                         state.folder_id = None;
                     }
                     for f in folders {
-                        if ui
-                            .selectable_label(state.folder_id == Some(f.id), &f.name)
-                            .clicked()
-                        {
+                        if ui.selectable_label(state.folder_id == Some(f.id), &f.name).clicked() {
                             state.folder_id = Some(f.id);
                         }
                     }
@@ -282,7 +284,7 @@ pub fn render_conn_modal(
         // Gateway: only for protocols that can be reached through one
         let tunnelable = registry
             .get(&state.protocol_id)
-            .map_or(false, |e| e.def.endpoint.is_some());
+            .is_some_and(|e| e.def.endpoint.is_some());
         if tunnelable {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
@@ -290,7 +292,7 @@ pub fn render_conn_modal(
                 let candidates: Vec<&ConnectionProfile> = connections
                     .iter()
                     .filter(|c| Some(c.id) != state.id)
-                    .filter(|c| registry.get(&c.protocol.kind).map_or(false, |e| e.def.gateway))
+                    .filter(|c| registry.get(&c.protocol.kind).is_some_and(|e| e.def.gateway))
                     .filter(|c| !reaches(connections, c.via, state.id))
                     .collect();
                 let current = state

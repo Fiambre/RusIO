@@ -1,6 +1,6 @@
 //! A tabular result (query output) and a virtualized grid widget to show it. Shared by every
 //! plugin that returns rows, so they all look and behave the same.
-use egui::{Align2, Color32, FontId, Rect, CornerRadius, Sense, Vec2};
+use egui::{Align2, Color32, CornerRadius, FontId, Rect, Sense, Vec2};
 
 use crate::theme::Theme;
 
@@ -93,10 +93,7 @@ pub fn data_grid(ui: &mut egui::Ui, table: &DataTable, state: &mut GridState) {
             ui.painter().rect_filled(hrect, CornerRadius::ZERO, theme.bg_panel_alt);
             let mut x = hrect.left();
             for (i, name) in table.columns.iter().enumerate() {
-                let col = Rect::from_min_size(
-                    egui::pos2(x, hrect.top()),
-                    Vec2::new(widths[i], HEADER_H),
-                );
+                let col = Rect::from_min_size(egui::pos2(x, hrect.top()), Vec2::new(widths[i], HEADER_H));
                 ui.painter().with_clip_rect(col.intersect(ui.clip_rect())).text(
                     egui::pos2(x + CELL_PAD, hrect.center().y),
                     Align2::LEFT_CENTER,
@@ -115,38 +112,29 @@ pub fn data_grid(ui: &mut egui::Ui, table: &DataTable, state: &mut GridState) {
                 .show_rows(ui, ROW_H, table.rows.len(), |ui, range| {
                     for ri in range {
                         let row = &table.rows[ri];
-                        let (rect, resp) =
-                            ui.allocate_exact_size(Vec2::new(total_w, ROW_H), Sense::click());
+                        let (rect, resp) = ui.allocate_exact_size(Vec2::new(total_w, ROW_H), Sense::click());
 
                         if state.selected_row == Some(ri) {
                             ui.painter().rect_filled(rect, CornerRadius::ZERO, theme.bg_active);
                         } else if resp.hovered() {
                             ui.painter().rect_filled(rect, CornerRadius::ZERO, theme.bg_hover);
                         } else if ri % 2 == 1 {
-                            ui.painter().rect_filled(
-                                rect,
-                                CornerRadius::ZERO,
-                                Color32::from_white_alpha(4),
-                            );
+                            ui.painter()
+                                .rect_filled(rect, CornerRadius::ZERO, Color32::from_white_alpha(4));
                         }
 
                         let mut x = rect.left();
                         for (ci, w) in widths.iter().enumerate() {
                             let cell = row.get(ci).map(String::as_str).unwrap_or("");
                             let is_null = cell == "NULL";
-                            let col = Rect::from_min_size(
-                                egui::pos2(x, rect.top()),
-                                Vec2::new(*w, ROW_H),
+                            let col = Rect::from_min_size(egui::pos2(x, rect.top()), Vec2::new(*w, ROW_H));
+                            ui.painter().with_clip_rect(col.intersect(ui.clip_rect())).text(
+                                egui::pos2(x + CELL_PAD, rect.center().y),
+                                Align2::LEFT_CENTER,
+                                one_line(cell),
+                                FontId::proportional(12.0),
+                                if is_null { theme.text_muted } else { theme.text_primary },
                             );
-                            ui.painter()
-                                .with_clip_rect(col.intersect(ui.clip_rect()))
-                                .text(
-                                    egui::pos2(x + CELL_PAD, rect.center().y),
-                                    Align2::LEFT_CENTER,
-                                    one_line(cell),
-                                    FontId::proportional(12.0),
-                                    if is_null { theme.text_muted } else { theme.text_primary },
-                                );
                             x += *w;
                         }
 
@@ -154,9 +142,7 @@ pub fn data_grid(ui: &mut egui::Ui, table: &DataTable, state: &mut GridState) {
                             state.selected_row = Some(ri);
                         }
                         if resp.secondary_clicked() {
-                            let px = resp
-                                .interact_pointer_pos()
-                                .map_or(0.0, |p| p.x - rect.left());
+                            let px = resp.interact_pointer_pos().map_or(0.0, |p| p.x - rect.left());
                             let mut acc = 0.0;
                             let mut col = widths.len().saturating_sub(1);
                             for (ci, w) in widths.iter().enumerate() {

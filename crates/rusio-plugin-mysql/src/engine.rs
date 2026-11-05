@@ -80,11 +80,15 @@ pub fn connect(o: &ConnectOptions) -> Result<Conn, String> {
     .map_err(|e| e.to_string())?;
 
     if o.read_only {
-        conn.query_drop("SET SESSION TRANSACTION READ ONLY").map_err(|e| e.to_string())?;
+        conn.query_drop("SET SESSION TRANSACTION READ ONLY")
+            .map_err(|e| e.to_string())?;
     }
     if o.statement_timeout_secs > 0 {
         // MySQL takes milliseconds, MariaDB seconds; whichever exists applies.
-        let _ = conn.query_drop(format!("SET SESSION max_execution_time = {}", o.statement_timeout_secs * 1000));
+        let _ = conn.query_drop(format!(
+            "SET SESSION max_execution_time = {}",
+            o.statement_timeout_secs * 1000
+        ));
         let _ = conn.query_drop(format!("SET SESSION max_statement_time = {}", o.statement_timeout_secs));
     }
     Ok(conn)
@@ -113,7 +117,11 @@ fn cell(v: &Value) -> String {
             }
         }
         Value::Time(neg, d, h, mi, s, _) => {
-            format!("{}{:02}:{mi:02}:{s:02}", if *neg { "-" } else { "" }, *d * 24 + u32::from(*h))
+            format!(
+                "{}{:02}:{mi:02}:{s:02}",
+                if *neg { "-" } else { "" },
+                *d * 24 + u32::from(*h)
+            )
         }
     }
 }
@@ -132,7 +140,12 @@ pub fn run_sql(conn: &mut Conn, sql: &str, max_rows: usize) -> Result<QueryResul
 
     while let Some(set) = results.iter() {
         statements += 1;
-        let columns: Vec<String> = set.columns().as_ref().iter().map(|c| c.name_str().to_string()).collect();
+        let columns: Vec<String> = set
+            .columns()
+            .as_ref()
+            .iter()
+            .map(|c| c.name_str().to_string())
+            .collect();
         if columns.is_empty() {
             changed = set.affected_rows();
             last = None;
@@ -147,7 +160,11 @@ pub fn run_sql(conn: &mut Conn, sql: &str, max_rows: usize) -> Result<QueryResul
                 truncated = true;
                 continue;
             }
-            rows.push((0..row.len()).map(|i| row.as_ref(i).map_or_else(|| "NULL".to_string(), cell)).collect());
+            rows.push(
+                (0..row.len())
+                    .map(|i| row.as_ref(i).map_or_else(|| "NULL".to_string(), cell))
+                    .collect(),
+            );
         }
         last = Some((DataTable { columns, rows }, truncated));
     }
@@ -166,7 +183,12 @@ pub fn run_sql(conn: &mut Conn, sql: &str, max_rows: usize) -> Result<QueryResul
             } else {
                 format!("{n} filas")
             };
-            QueryResult { table: Some(table), truncated, elapsed_ms, message }
+            QueryResult {
+                table: Some(table),
+                truncated,
+                elapsed_ms,
+                message,
+            }
         }
         None => QueryResult {
             table: None,
@@ -229,7 +251,10 @@ pub fn databases_hint(conn: &mut Conn, current: &str, selector: bool) -> Option<
     };
     Some(QueryResult {
         message: format!("{what} Estas son las bases que puedes ver; para usar una, {how}:"),
-        table: Some(DataTable { columns: vec!["base_de_datos".to_string()], rows }),
+        table: Some(DataTable {
+            columns: vec!["base_de_datos".to_string()],
+            rows,
+        }),
         truncated: false,
         elapsed_ms: 0,
     })
@@ -293,7 +318,11 @@ impl Engine {
         let state = Arc::new(Mutex::new(ConsoleState::default()));
         let alive = Arc::new(AtomicBool::new(true));
         let connection_id = conn.connection_id();
-        let dbs = Arc::new(Mutex::new(if all_databases { list_databases(&mut conn) } else { Vec::new() }));
+        let dbs = Arc::new(Mutex::new(if all_databases {
+            list_databases(&mut conn)
+        } else {
+            Vec::new()
+        }));
         let current = Arc::new(Mutex::new(current_database(&mut conn)));
 
         apply_schema(load_schema(&mut conn), &state);
@@ -372,7 +401,15 @@ impl Engine {
             })
             .expect("spawn mysql worker");
 
-        Self { cmd_tx, state, alive, opts, connection_id, dbs, current }
+        Self {
+            cmd_tx,
+            state,
+            alive,
+            opts,
+            connection_id,
+            dbs,
+            current,
+        }
     }
 }
 
@@ -393,7 +430,11 @@ impl SqlBackend for Engine {
         // Needs a second connection (KILL QUERY); keep the round trips off the UI thread.
         let (opts, id) = (self.opts.clone(), self.connection_id);
         thread::spawn(move || {
-            if let Ok(mut c) = connect(&ConnectOptions { read_only: false, statement_timeout_secs: 0, ..opts }) {
+            if let Ok(mut c) = connect(&ConnectOptions {
+                read_only: false,
+                statement_timeout_secs: 0,
+                ..opts
+            }) {
                 let _ = c.query_drop(format!("KILL QUERY {id}"));
             }
         });
@@ -500,7 +541,12 @@ mod tests {
         let r = run_sql(&mut c, "SELECT nombre FROM persona WHERE 1=0", 10).unwrap();
         assert_eq!(r.table.unwrap().columns, ["nombre"]);
 
-        let r = run_sql(&mut c, "UPDATE persona SET edad = 1; SELECT count(*) AS n FROM persona", 10).unwrap();
+        let r = run_sql(
+            &mut c,
+            "UPDATE persona SET edad = 1; SELECT count(*) AS n FROM persona",
+            10,
+        )
+        .unwrap();
         assert_eq!(r.table.unwrap().rows, [["2"]]);
 
         let r = run_sql(&mut c, "DELETE FROM persona", 10).unwrap();
@@ -560,12 +606,18 @@ mod tests {
         assert!(engine.databases().contains(&"rusio_t2".to_string()));
 
         engine.switch_database("rusio_t2");
-        wait_for(&state, "switch", |s| !s.busy && s.tables.iter().any(|t| t.name == "solo_en_t2"));
+        wait_for(&state, "switch", |s| {
+            !s.busy && s.tables.iter().any(|t| t.name == "solo_en_t2")
+        });
         assert_eq!(engine.current_database(), "rusio_t2");
 
         engine.run("SELECT DATABASE() AS d".into());
         wait_for(&state, "query", |s| {
-            !s.busy && s.result.as_ref().and_then(|r| r.table.as_ref()).is_some_and(|t| t.rows[0][0] == "rusio_t2")
+            !s.busy
+                && s.result
+                    .as_ref()
+                    .and_then(|r| r.table.as_ref())
+                    .is_some_and(|t| t.rows[0][0] == "rusio_t2")
         });
 
         engine.run("SELECT SLEEP(30)".into());
@@ -576,7 +628,12 @@ mod tests {
         // MySQL answers an interrupted SLEEP with a result; MariaDB with error 1317.
         engine.run("SELECT 7 AS z".into());
         wait_for(&state, "next", |s| {
-            !s.busy && s.error.is_none() && s.result.as_ref().and_then(|r| r.table.as_ref()).is_some_and(|t| t.rows[0][0] == "7")
+            !s.busy
+                && s.error.is_none()
+                && s.result
+                    .as_ref()
+                    .and_then(|r| r.table.as_ref())
+                    .is_some_and(|t| t.rows[0][0] == "7")
         });
 
         engine.switch_database("no_existe_xyz");

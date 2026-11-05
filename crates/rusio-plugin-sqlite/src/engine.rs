@@ -4,9 +4,9 @@
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use fallible_iterator::FallibleIterator;
 use parking_lot::Mutex;
+use rusio_plugin_api::data::DataTable;
 use rusqlite::types::ValueRef;
 use rusqlite::{Connection, InterruptHandle, OpenFlags};
-use rusio_plugin_api::data::DataTable;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -81,7 +81,7 @@ pub fn run_sql(conn: &Connection, sql: &str, max_rows: usize) -> Result<QueryRes
         statements += 1;
         let ncols = stmt.column_count();
         if ncols > 0 {
-            let columns: Vec<String> = stmt.column_names().into_iter().map(String::from).collect();
+            let columns: Vec<String> = stmt.column_names().map(String::from).collect();
             let mut rows_it = stmt.query([]).map_err(|e| e.to_string())?;
             let mut rows = Vec::new();
             let mut truncated = false;
@@ -117,7 +117,12 @@ pub fn run_sql(conn: &Connection, sql: &str, max_rows: usize) -> Result<QueryRes
             } else {
                 format!("{n} filas")
             };
-            QueryResult { table: Some(table), truncated, elapsed_ms, message }
+            QueryResult {
+                table: Some(table),
+                truncated,
+                elapsed_ms,
+                message,
+            }
         }
         None => QueryResult {
             table: None,
@@ -153,7 +158,11 @@ pub fn load_schema(conn: &Connection) -> Result<Vec<SchemaTable>, String> {
         for c in rows {
             cols.push(c.map_err(|e| e.to_string())?);
         }
-        tables.push(SchemaTable { name, is_view: kind == "view", columns: cols });
+        tables.push(SchemaTable {
+            name,
+            is_view: kind == "view",
+            columns: cols,
+        });
     }
     Ok(tables)
 }
@@ -171,11 +180,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn start(
-        conn: Connection,
-        max_rows: usize,
-        repaint: impl Fn() + Send + Sync + 'static,
-    ) -> Self {
+    pub fn start(conn: Connection, max_rows: usize, repaint: impl Fn() + Send + Sync + 'static) -> Self {
         let (cmd_tx, cmd_rx): (Sender<Cmd>, Receiver<Cmd>) = unbounded();
         let state = Arc::new(Mutex::new(EngineState::default()));
         let is_alive = Arc::new(AtomicBool::new(true));
@@ -239,7 +244,12 @@ impl Engine {
             })
             .expect("spawn sqlite worker");
 
-        Self { cmd_tx, state, is_alive, interrupt }
+        Self {
+            cmd_tx,
+            state,
+            is_alive,
+            interrupt,
+        }
     }
 
     pub fn send(&self, cmd: Cmd) {
@@ -329,7 +339,9 @@ mod tests {
     fn errors_are_reported_not_panicked() {
         assert!(run_sql(&mem(), "SELEC 1", 10).is_err());
         assert!(run_sql(&mem(), "   ", 10).is_err());
-        assert!(run_sql(&mem(), "SELECT * FROM no_existe", 10).unwrap_err().contains("no_existe"));
+        assert!(run_sql(&mem(), "SELECT * FROM no_existe", 10)
+            .unwrap_err()
+            .contains("no_existe"));
     }
 
     #[test]
@@ -348,13 +360,23 @@ mod tests {
 
     #[test]
     fn open_rejects_missing_and_non_database_files() {
-        let opts = OpenOptions { read_only: false, create: false, busy_timeout_ms: 100 };
-        assert!(open(Path::new("no-existe-12345.db"), &opts).unwrap_err().contains("No existe"));
+        let opts = OpenOptions {
+            read_only: false,
+            create: false,
+            busy_timeout_ms: 100,
+        };
+        assert!(open(Path::new("no-existe-12345.db"), &opts)
+            .unwrap_err()
+            .contains("No existe"));
 
         let dir = std::env::temp_dir().join(format!("rusio-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let junk = dir.join("junk.db");
-        std::fs::write(&junk, b"esto no es sqlite, solo texto de relleno largo largo largo largo").unwrap();
+        std::fs::write(
+            &junk,
+            b"esto no es sqlite, solo texto de relleno largo largo largo largo",
+        )
+        .unwrap();
         assert!(open(&junk, &opts).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -364,13 +386,21 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("rusio-ro-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("t.db");
-        let create = OpenOptions { read_only: false, create: true, busy_timeout_ms: 100 };
+        let create = OpenOptions {
+            read_only: false,
+            create: true,
+            busy_timeout_ms: 100,
+        };
         open(&path, &create)
             .unwrap()
             .execute_batch("CREATE TABLE t(x)")
             .unwrap();
 
-        let ro = OpenOptions { read_only: true, create: false, busy_timeout_ms: 100 };
+        let ro = OpenOptions {
+            read_only: true,
+            create: false,
+            busy_timeout_ms: 100,
+        };
         let c = open(&path, &ro).unwrap();
         assert!(run_sql(&c, "INSERT INTO t VALUES (1)", 10).is_err());
         drop(c);
@@ -394,12 +424,23 @@ mod tests {
         engine.send(Cmd::Run("SELECT nombre FROM persona ORDER BY id".into()));
         wait_for(&engine, "select", |s| s.result.is_some() && !s.busy);
         assert_eq!(
-            engine.state.lock().result.as_ref().unwrap().table.as_ref().unwrap().rows[0][0],
+            engine
+                .state
+                .lock()
+                .result
+                .as_ref()
+                .unwrap()
+                .table
+                .as_ref()
+                .unwrap()
+                .rows[0][0],
             "Ana"
         );
 
         engine.send(Cmd::Run("CREATE TABLE nueva(a)".into()));
-        wait_for(&engine, "schema refresh", |s| s.tables.iter().any(|t| t.name == "nueva"));
+        wait_for(&engine, "schema refresh", |s| {
+            s.tables.iter().any(|t| t.name == "nueva")
+        });
         engine.close();
     }
 
@@ -417,7 +458,9 @@ mod tests {
 
         // The engine keeps working after a cancel.
         engine.send(Cmd::Run("SELECT 1".into()));
-        wait_for(&engine, "next query", |s| s.error.is_none() && s.result.is_some() && !s.busy);
+        wait_for(&engine, "next query", |s| {
+            s.error.is_none() && s.result.is_some() && !s.busy
+        });
         engine.close();
     }
 }

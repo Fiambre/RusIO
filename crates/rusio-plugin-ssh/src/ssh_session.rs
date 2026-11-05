@@ -45,191 +45,174 @@ impl SshSession {
         let host_clone = host.clone();
         let user_clone = username.clone();
 
-        thread::Builder::new()
-            .name("ssh-worker".to_string())
-            .spawn(move || {
-                let addr = format!("{}:{}", host_clone, port);
-                let connect_msg = format!("\x1b[36m>>> Connecting to {}...\x1b[0m\r\n", addr);
-                terminal.lock().feed(connect_msg.as_bytes());
+        thread::Builder::new().name("ssh-worker".to_string()).spawn(move || {
+            let addr = format!("{}:{}", host_clone, port);
+            let connect_msg = format!("\x1b[36m>>> Connecting to {}...\x1b[0m\r\n", addr);
+            terminal.lock().feed(connect_msg.as_bytes());
+            repaint_signal();
+
+            let tcp = match TcpStream::connect_timeout(
+                &addr.parse().unwrap_or_else(|_| {
+                    // resolve hostname
+                    use std::net::ToSocketAddrs;
+                    addr.to_socket_addrs()
+                        .ok()
+                        .and_then(|mut iter| iter.next())
+                        .unwrap_or_else(|| "127.0.0.1:22".parse().unwrap())
+                }),
+                connect_timeout,
+            ) {
+                Ok(stream) => stream,
+                Err(e) => {
+                    let err_msg = format!("\x1b[31;1m>>> Connection error: {}\x1b[0m\r\n", e);
+                    terminal.lock().feed(err_msg.as_bytes());
+                    repaint_signal();
+                    is_alive_clone.store(false, Ordering::Relaxed);
+                    return;
+                }
+            };
+
+            let mut sess = match Session::new() {
+                Ok(s) => s,
+                Err(e) => {
+                    let err_msg = format!("\x1b[31;1m>>> SSH session error: {}\x1b[0m\r\n", e);
+                    terminal.lock().feed(err_msg.as_bytes());
+                    repaint_signal();
+                    is_alive_clone.store(false, Ordering::Relaxed);
+                    return;
+                }
+            };
+
+            sess.set_tcp_stream(tcp);
+            if let Err(e) = sess.handshake() {
+                let err_msg = format!("\x1b[31;1m>>> SSH handshake error: {}\x1b[0m\r\n", e);
+                terminal.lock().feed(err_msg.as_bytes());
                 repaint_signal();
+                is_alive_clone.store(false, Ordering::Relaxed);
+                return;
+            }
 
-                let tcp = match TcpStream::connect_timeout(
-                    &addr.parse().unwrap_or_else(|_| {
-                        // resolve hostname
-                        use std::net::ToSocketAddrs;
-                        addr.to_socket_addrs()
-                            .ok()
-                            .and_then(|mut iter| iter.next())
-                            .unwrap_or_else(|| "127.0.0.1:22".parse().unwrap())
-                    }),
-                    connect_timeout,
-                ) {
-                    Ok(stream) => stream,
-                    Err(e) => {
-                        let err_msg = format!("\x1b[31;1m>>> Connection error: {}\x1b[0m\r\n", e);
-                        terminal.lock().feed(err_msg.as_bytes());
-                        repaint_signal();
-                        is_alive_clone.store(false, Ordering::Relaxed);
-                        return;
-                    }
-                };
-
-                let mut sess = match Session::new() {
-                    Ok(s) => s,
-                    Err(e) => {
-                        let err_msg = format!("\x1b[31;1m>>> SSH session error: {}\x1b[0m\r\n", e);
-                        terminal.lock().feed(err_msg.as_bytes());
-                        repaint_signal();
-                        is_alive_clone.store(false, Ordering::Relaxed);
-                        return;
-                    }
-                };
-
-                sess.set_tcp_stream(tcp);
-                if let Err(e) = sess.handshake() {
-                    let err_msg = format!("\x1b[31;1m>>> SSH handshake error: {}\x1b[0m\r\n", e);
-                    terminal.lock().feed(err_msg.as_bytes());
-                    repaint_signal();
-                    is_alive_clone.store(false, Ordering::Relaxed);
-                    return;
+            // Authenticate
+            let auth_result = match &auth {
+                SshAuth::Password(pass) => sess.userauth_password(&user_clone, pass),
+                SshAuth::KeyFile { path, passphrase } => {
+                    sess.userauth_pubkey_file(&user_clone, None, Path::new(path), passphrase.as_deref())
                 }
-
-                // Authenticate
-                let auth_result = match &auth {
-                    SshAuth::Password(pass) => sess.userauth_password(&user_clone, pass),
-                    SshAuth::KeyFile { path, passphrase } => sess.userauth_pubkey_file(
-                        &user_clone,
-                        None,
-                        Path::new(path),
-                        passphrase.as_deref(),
-                    ),
-                    SshAuth::Agent => {
-                        let res = sess.agent().and_then(|mut agent| {
-                            agent.connect()?;
-                            agent.list_identities()?;
-                            for id in agent.identities()? {
-                                if agent.userauth(&user_clone, &id).is_ok() {
-                                    return Ok(());
-                                }
-                            }
-                            Err(ssh2::Error::from_errno(ssh2::ErrorCode::Session(-1)))
-                        });
-                        res
-                    }
-                };
-
-                if let Err(e) = auth_result {
-                    let err_msg = format!("\x1b[31;1m>>> SSH authentication failed: {}\x1b[0m\r\n", e);
-                    terminal.lock().feed(err_msg.as_bytes());
-                    repaint_signal();
-                    is_alive_clone.store(false, Ordering::Relaxed);
-                    return;
-                }
-
-                if !sess.authenticated() {
-                    let err_msg = "\x1b[31;1m>>> Authentication rejected by server.\x1b[0m\r\n";
-                    terminal.lock().feed(err_msg.as_bytes());
-                    repaint_signal();
-                    is_alive_clone.store(false, Ordering::Relaxed);
-                    return;
-                }
-
-                let mut channel = match sess.channel_session() {
-                    Ok(c) => c,
-                    Err(e) => {
-                        let err_msg = format!("\x1b[31;1m>>> Failed to open channel: {}\x1b[0m\r\n", e);
-                        terminal.lock().feed(err_msg.as_bytes());
-                        repaint_signal();
-                        is_alive_clone.store(false, Ordering::Relaxed);
-                        return;
-                    }
-                };
-
-                if let Err(e) = channel.request_pty(
-                    "xterm-256color",
-                    None,
-                    Some((cols as u32, rows as u32, 0, 0)),
-                ) {
-                    let err_msg = format!("\x1b[31;1m>>> PTY request error: {}\x1b[0m\r\n", e);
-                    terminal.lock().feed(err_msg.as_bytes());
-                    repaint_signal();
-                    is_alive_clone.store(false, Ordering::Relaxed);
-                    return;
-                }
-
-                if let Err(e) = channel.shell() {
-                    let err_msg = format!("\x1b[31;1m>>> Shell start error: {}\x1b[0m\r\n", e);
-                    terminal.lock().feed(err_msg.as_bytes());
-                    repaint_signal();
-                    is_alive_clone.store(false, Ordering::Relaxed);
-                    return;
-                }
-
-                let ready_msg = format!("\x1b[32;1m>>> Connected to {}!\x1b[0m\r\n", addr);
-                terminal.lock().feed(ready_msg.as_bytes());
-                repaint_signal();
-
-                // Set non-blocking on session for responsive read/write loop
-                sess.set_blocking(false);
-
-                let mut read_buf = [0u8; 8192];
-
-                while is_alive_clone.load(Ordering::Relaxed) {
-                    // Check outgoing actions
-                    while let Ok(action) = action_rx.try_recv() {
-                        match action {
-                            SshAction::Write(data) => {
-                                let _ = channel.write_all(&data);
-                                let _ = channel.flush();
-                            }
-                            SshAction::Resize { cols, rows } => {
-                                let _ = channel.request_pty_size(
-                                    cols as u32,
-                                    rows as u32,
-                                    None,
-                                    None,
-                                );
-                            }
-                            SshAction::Close => {
-                                let _ = channel.close();
-                                is_alive_clone.store(false, Ordering::Relaxed);
-                                break;
-                            }
+                SshAuth::Agent => sess.agent().and_then(|mut agent| {
+                    agent.connect()?;
+                    agent.list_identities()?;
+                    for id in agent.identities()? {
+                        if agent.userauth(&user_clone, &id).is_ok() {
+                            return Ok(());
                         }
                     }
+                    Err(ssh2::Error::from_errno(ssh2::ErrorCode::Session(-1)))
+                }),
+            };
 
-                    if !is_alive_clone.load(Ordering::Relaxed) {
-                        break;
-                    }
+            if let Err(e) = auth_result {
+                let err_msg = format!("\x1b[31;1m>>> SSH authentication failed: {}\x1b[0m\r\n", e);
+                terminal.lock().feed(err_msg.as_bytes());
+                repaint_signal();
+                is_alive_clone.store(false, Ordering::Relaxed);
+                return;
+            }
 
-                    // Read incoming data
-                    match channel.read(&mut read_buf) {
-                        Ok(0) => {
-                            // Channel closed
-                            if channel.eof() {
-                                let disc_msg = "\r\n\x1b[33m>>> SSH Session closed by remote host.\x1b[0m\r\n";
-                                terminal.lock().feed(disc_msg.as_bytes());
-                                repaint_signal();
-                                is_alive_clone.store(false, Ordering::Relaxed);
-                                break;
-                            }
-                            thread::sleep(Duration::from_millis(10));
+            if !sess.authenticated() {
+                let err_msg = "\x1b[31;1m>>> Authentication rejected by server.\x1b[0m\r\n";
+                terminal.lock().feed(err_msg.as_bytes());
+                repaint_signal();
+                is_alive_clone.store(false, Ordering::Relaxed);
+                return;
+            }
+
+            let mut channel = match sess.channel_session() {
+                Ok(c) => c,
+                Err(e) => {
+                    let err_msg = format!("\x1b[31;1m>>> Failed to open channel: {}\x1b[0m\r\n", e);
+                    terminal.lock().feed(err_msg.as_bytes());
+                    repaint_signal();
+                    is_alive_clone.store(false, Ordering::Relaxed);
+                    return;
+                }
+            };
+
+            if let Err(e) = channel.request_pty("xterm-256color", None, Some((cols as u32, rows as u32, 0, 0))) {
+                let err_msg = format!("\x1b[31;1m>>> PTY request error: {}\x1b[0m\r\n", e);
+                terminal.lock().feed(err_msg.as_bytes());
+                repaint_signal();
+                is_alive_clone.store(false, Ordering::Relaxed);
+                return;
+            }
+
+            if let Err(e) = channel.shell() {
+                let err_msg = format!("\x1b[31;1m>>> Shell start error: {}\x1b[0m\r\n", e);
+                terminal.lock().feed(err_msg.as_bytes());
+                repaint_signal();
+                is_alive_clone.store(false, Ordering::Relaxed);
+                return;
+            }
+
+            let ready_msg = format!("\x1b[32;1m>>> Connected to {}!\x1b[0m\r\n", addr);
+            terminal.lock().feed(ready_msg.as_bytes());
+            repaint_signal();
+
+            // Set non-blocking on session for responsive read/write loop
+            sess.set_blocking(false);
+
+            let mut read_buf = [0u8; 8192];
+
+            while is_alive_clone.load(Ordering::Relaxed) {
+                // Check outgoing actions
+                while let Ok(action) = action_rx.try_recv() {
+                    match action {
+                        SshAction::Write(data) => {
+                            let _ = channel.write_all(&data);
+                            let _ = channel.flush();
                         }
-                        Ok(n) => {
-                            terminal.lock().feed(&read_buf[..n]);
+                        SshAction::Resize { cols, rows } => {
+                            let _ = channel.request_pty_size(cols as u32, rows as u32, None, None);
+                        }
+                        SshAction::Close => {
+                            let _ = channel.close();
+                            is_alive_clone.store(false, Ordering::Relaxed);
+                            break;
+                        }
+                    }
+                }
+
+                if !is_alive_clone.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                // Read incoming data
+                match channel.read(&mut read_buf) {
+                    Ok(0) => {
+                        // Channel closed
+                        if channel.eof() {
+                            let disc_msg = "\r\n\x1b[33m>>> SSH Session closed by remote host.\x1b[0m\r\n";
+                            terminal.lock().feed(disc_msg.as_bytes());
                             repaint_signal();
+                            is_alive_clone.store(false, Ordering::Relaxed);
+                            break;
                         }
-                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            thread::sleep(Duration::from_millis(10));
-                        }
-                        Err(_) => {
-                            thread::sleep(Duration::from_millis(10));
-                        }
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    Ok(n) => {
+                        terminal.lock().feed(&read_buf[..n]);
+                        repaint_signal();
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(_) => {
+                        thread::sleep(Duration::from_millis(10));
                     }
                 }
+            }
 
-                let _ = channel.close();
-            })?;
+            let _ = channel.close();
+        })?;
 
         Ok(Self {
             action_tx,

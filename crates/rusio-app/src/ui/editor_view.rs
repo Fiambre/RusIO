@@ -20,7 +20,14 @@ pub fn render_editor(ui: &mut egui::Ui, e: &mut EditorSession) {
         ui.spacing_mut().button_padding = Vec2::new(10.0, 4.0);
 
         let connected = e.is_connected();
-        icons::status_dot(ui, if connected { theme.status_online } else { theme.status_offline });
+        icons::status_dot(
+            ui,
+            if connected {
+                theme.status_online
+            } else {
+                theme.status_offline
+            },
+        );
         ui.label(
             RichText::new(&e.path)
                 .size(11.0)
@@ -37,13 +44,7 @@ pub fn render_editor(ui: &mut egui::Ui, e: &mut EditorSession) {
                 e.save();
             }
         });
-        if icons::icon_button_sized(
-            ui,
-            Icon::Refresh,
-            None,
-            "Recargar (descarta los cambios)",
-            CTRL_H,
-        ) {
+        if icons::icon_button_sized(ui, Icon::Refresh, None, "Recargar (descarta los cambios)", CTRL_H) {
             e.reload();
         }
 
@@ -59,11 +60,11 @@ pub fn render_editor(ui: &mut egui::Ui, e: &mut EditorSession) {
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if !e.status.is_empty() {
-                ui.label(
-                    RichText::new(&e.status)
-                        .size(11.0)
-                        .color(if e.is_error { theme.status_offline } else { theme.text_secondary }),
-                );
+                ui.label(RichText::new(&e.status).size(11.0).color(if e.is_error {
+                    theme.status_offline
+                } else {
+                    theme.text_secondary
+                }));
             }
         });
     });
@@ -90,12 +91,8 @@ pub fn render_editor(ui: &mut egui::Ui, e: &mut EditorSession) {
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 12.0;
                 ui.add(
-                    egui::Label::new(
-                        RichText::new(gutter)
-                            .font(font.clone())
-                            .color(theme.text_muted),
-                    )
-                    .selectable(false),
+                    egui::Label::new(RichText::new(gutter).font(font.clone()).color(theme.text_muted))
+                        .selectable(false),
                 );
 
                 let resp = ui.add(

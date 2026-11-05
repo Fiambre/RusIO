@@ -94,7 +94,10 @@ pub fn resolve(
 ) -> Result<Resolved, String> {
     let mut guards: Vec<Box<dyn Any + Send>> = Vec::new();
     let Some(first) = hops.first() else {
-        return Ok(Resolved { params: target_params.clone(), guards });
+        return Ok(Resolved {
+            params: target_params.clone(),
+            guards,
+        });
     };
 
     // Params to reach hop `i`: the first goes direct, the rest through the previous tunnel.
@@ -118,8 +121,8 @@ pub fn resolve(
             .endpoint
             .as_ref()
             .ok_or_else(|| format!("{} no admite puertas de enlace", next_entry.def.name))?;
-        let (host, port) = (endpoint.get)(next_params)
-            .ok_or_else(|| "el destino no tiene host y puerto válidos".to_string())?;
+        let (host, port) =
+            (endpoint.get)(next_params).ok_or_else(|| "el destino no tiene host y puerto válidos".to_string())?;
 
         let tunnel = gateway
             .plugin
@@ -137,7 +140,10 @@ pub fn resolve(
 
     // Close the innermost tunnel first.
     guards.reverse();
-    Ok(Resolved { params: final_params, guards })
+    Ok(Resolved {
+        params: final_params,
+        guards,
+    })
 }
 
 #[cfg(test)]
@@ -147,9 +153,7 @@ mod tests {
     use rusio_core::config::ProtocolData;
     use rusio_plugin_api::egui::{self, Color32};
     use rusio_plugin_api::serde_json::json;
-    use rusio_plugin_api::{
-        ConnectRequest, Connected, Endpoint, Plugin, ProtocolDef, Tunnel,
-    };
+    use rusio_plugin_api::{ConnectRequest, Connected, Endpoint, Plugin, ProtocolDef, Tunnel};
     use std::sync::Arc;
     use uuid::Uuid;
 
@@ -182,7 +186,6 @@ mod tests {
         }
     }
 
-
     impl Plugin for Fake {
         fn protocol(&self) -> ProtocolDef {
             ProtocolDef {
@@ -197,7 +200,10 @@ mod tests {
                 actions: vec![],
                 welcome: None,
                 gateway: self.gateway,
-                endpoint: self.endpoint.then_some(Endpoint { get: ep_get, set: ep_set }),
+                endpoint: self.endpoint.then_some(Endpoint {
+                    get: ep_get,
+                    set: ep_set,
+                }),
             }
         }
         fn default_params(&self) -> Params {
@@ -210,23 +216,26 @@ mod tests {
         fn connect(&self, _: &ConnectRequest) -> Result<Connected, String> {
             Err("n/a".into())
         }
-        fn open_tunnel(
-            &self,
-            params: &Params,
-            _: &SettingValues,
-            host: &str,
-            port: u16,
-        ) -> Result<Tunnel, String> {
+        fn open_tunnel(&self, params: &Params, _: &SettingValues, host: &str, port: u16) -> Result<Tunnel, String> {
             let gw = ep_get(params).map(|(h, p)| format!("{h}:{p}")).unwrap();
             self.calls.lock().push((gw, format!("{host}:{port}")));
             let mut next = self.next_port.lock();
             *next += 1;
-            Ok(Tunnel { local_port: *next, guard: Box::new(()) })
+            Ok(Tunnel {
+                local_port: *next,
+                guard: Box::new(()),
+            })
         }
     }
 
     fn fake(id: &'static str, gateway: bool, endpoint: bool, calls: &Calls, first_port: u16) -> Box<dyn Plugin> {
-        Box::new(Fake { id, gateway, endpoint, calls: calls.clone(), next_port: Mutex::new(first_port) })
+        Box::new(Fake {
+            id,
+            gateway,
+            endpoint,
+            calls: calls.clone(),
+            next_port: Mutex::new(first_port),
+        })
     }
 
     fn profile(name: &str, kind: &str, host: &str, port: u16, via: Option<Uuid>) -> ConnectionProfile {
@@ -279,7 +288,10 @@ mod tests {
 
         let r = resolve(&reg, &hops, "Db", &db.protocol.params).unwrap();
         // The gateway was reached directly and asked to forward to the private target...
-        assert_eq!(calls.lock()[0], ("bastion.example:22".to_string(), "10.0.0.5:5432".to_string()));
+        assert_eq!(
+            calls.lock()[0],
+            ("bastion.example:22".to_string(), "10.0.0.5:5432".to_string())
+        );
         // ...and the session now connects to the tunnel's local port.
         assert_eq!(r.params["host"], "127.0.0.1");
         assert_eq!(r.params["port"], 40001);
@@ -295,12 +307,18 @@ mod tests {
         let all = vec![outer.clone(), inner.clone(), db.clone()];
 
         let hops = build_chain(&db, &all, &reg, &none).unwrap();
-        assert_eq!(hops.iter().map(|h| h.name.as_str()).collect::<Vec<_>>(), ["outer", "inner"]);
+        assert_eq!(
+            hops.iter().map(|h| h.name.as_str()).collect::<Vec<_>>(),
+            ["outer", "inner"]
+        );
 
         let r = resolve(&reg, &hops, "Db", &db.protocol.params).unwrap();
         let calls = calls.lock();
         // outer is reached directly and forwards to the inner gateway's address;
-        assert_eq!(calls[0], ("outer.example:22".to_string(), "192.168.1.10:22".to_string()));
+        assert_eq!(
+            calls[0],
+            ("outer.example:22".to_string(), "192.168.1.10:22".to_string())
+        );
         // inner is reached through outer's tunnel and forwards to the database.
         assert_eq!(calls[1], ("127.0.0.1:40001".to_string(), "10.0.0.5:5432".to_string()));
         assert_eq!(r.params["port"], 40002);
@@ -313,17 +331,33 @@ mod tests {
         struct Ordered(Arc<Mutex<Vec<&'static str>>>, Mutex<usize>);
         impl Plugin for Ordered {
             fn protocol(&self) -> ProtocolDef {
-                Fake { id: "Gw", gateway: true, endpoint: true, calls: Arc::default(), next_port: Mutex::new(0) }.protocol()
+                Fake {
+                    id: "Gw",
+                    gateway: true,
+                    endpoint: true,
+                    calls: Arc::default(),
+                    next_port: Mutex::new(0),
+                }
+                .protocol()
             }
-            fn default_params(&self) -> Params { json!({}) }
-            fn summary(&self, _: &Params) -> String { String::new() }
+            fn default_params(&self) -> Params {
+                json!({})
+            }
+            fn summary(&self, _: &Params) -> String {
+                String::new()
+            }
             fn edit_ui(&self, _: &mut egui::Ui, _: &mut Params) {}
-            fn connect(&self, _: &ConnectRequest) -> Result<Connected, String> { Err("n/a".into()) }
+            fn connect(&self, _: &ConnectRequest) -> Result<Connected, String> {
+                Err("n/a".into())
+            }
             fn open_tunnel(&self, _: &Params, _: &SettingValues, _: &str, _: u16) -> Result<Tunnel, String> {
                 let mut n = self.1.lock();
                 *n += 1;
                 let name = if *n == 1 { "outer" } else { "inner" };
-                Ok(Tunnel { local_port: 1000 + *n as u16, guard: Box::new(Guard(name, self.0.clone())) })
+                Ok(Tunnel {
+                    local_port: 1000 + *n as u16,
+                    guard: Box::new(Guard(name, self.0.clone())),
+                })
             }
         }
         let reg = Registry::new(vec![Box::new(Ordered(order.clone(), Mutex::new(0)))]);
@@ -343,18 +377,26 @@ mod tests {
         let mut a = profile("a", "Gw", "a", 22, None);
         let b = profile("b", "Gw", "b", 22, Some(a.id));
         a.via = Some(b.id);
-        assert!(build_chain(&a, &[a.clone(), b.clone()], &reg, &none).unwrap_err().contains("ciclo"));
+        assert!(build_chain(&a, &[a.clone(), b.clone()], &reg, &none)
+            .unwrap_err()
+            .contains("ciclo"));
 
         let orphan = profile("x", "Db", "x", 1, Some(Uuid::new_v4()));
-        assert!(build_chain(&orphan, &[orphan.clone()], &reg, &none).unwrap_err().contains("ya no existe"));
+        assert!(build_chain(&orphan, &[orphan.clone()], &reg, &none)
+            .unwrap_err()
+            .contains("ya no existe"));
 
         let not_gw = profile("notgw", "Db", "n", 1, None);
         let t = profile("t", "Db", "t", 1, Some(not_gw.id));
-        assert!(build_chain(&t, &[not_gw, t.clone()], &reg, &none).unwrap_err().contains("no puede actuar"));
+        assert!(build_chain(&t, &[not_gw, t.clone()], &reg, &none)
+            .unwrap_err()
+            .contains("no puede actuar"));
 
         let gw = profile("gw", "Gw", "g", 22, None);
         let no_ep = profile("t", "NoEp", "t", 1, Some(gw.id));
-        assert!(build_chain(&no_ep, &[gw, no_ep.clone()], &reg, &none).unwrap_err().contains("no admite"));
+        assert!(build_chain(&no_ep, &[gw, no_ep.clone()], &reg, &none)
+            .unwrap_err()
+            .contains("no admite"));
     }
 
     #[test]
@@ -366,6 +408,8 @@ mod tests {
             all.push(profile(&format!("g{i}"), "Gw", "g", 22, Some(prev)));
         }
         let target = profile("t", "Db", "t", 1, Some(all.last().unwrap().id));
-        assert!(build_chain(&target, &all, &reg, &none).unwrap_err().contains("demasiadas"));
+        assert!(build_chain(&target, &all, &reg, &none)
+            .unwrap_err()
+            .contains("demasiadas"));
     }
 }

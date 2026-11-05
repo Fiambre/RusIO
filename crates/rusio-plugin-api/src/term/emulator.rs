@@ -56,10 +56,7 @@ impl TerminalEmulator {
         font_size: f32,
         focused: bool,
     ) -> (Option<Vec<u8>>, Option<(u16, u16)>) {
-        let (rect, response) = ui.allocate_exact_size(
-            ui.available_size(),
-            egui::Sense::click_and_drag(),
-        );
+        let (rect, response) = ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
 
         let painter = ui.painter_at(rect);
 
@@ -80,11 +77,9 @@ impl TerminalEmulator {
         let available_rows = (rect.height() / char_size.y).floor() as u16;
 
         let mut resized_to = None;
-        if available_cols >= 20 && available_rows >= 5 {
-            if available_cols != self.cols || available_rows != self.rows {
-                self.resize(available_cols, available_rows);
-                resized_to = Some((available_cols, available_rows));
-            }
+        if available_cols >= 20 && available_rows >= 5 && (available_cols != self.cols || available_rows != self.rows) {
+            self.resize(available_cols, available_rows);
+            resized_to = Some((available_cols, available_rows));
         }
 
         let screen = self.parser.screen();
@@ -139,13 +134,7 @@ impl TerminalEmulator {
                     }
 
                     // Draw text
-                    painter.text(
-                        Pos2::new(x, y),
-                        egui::Align2::LEFT_TOP,
-                        &run_text,
-                        font_id.clone(),
-                        fg,
-                    );
+                    painter.text(Pos2::new(x, y), egui::Align2::LEFT_TOP, &run_text, font_id.clone(), fg);
                 } else {
                     col += 1;
                 }
@@ -159,16 +148,9 @@ impl TerminalEmulator {
         if focused && cursor_visible && cursor_on {
             let cursor_x = rect.min.x + (cursor_col as f32) * char_size.x;
             let cursor_y = rect.min.y + (cursor_row as f32) * char_size.y;
-            let cursor_rect = Rect::from_min_size(
-                Pos2::new(cursor_x, cursor_y),
-                Vec2::new(char_size.x, char_size.y),
-            );
+            let cursor_rect = Rect::from_min_size(Pos2::new(cursor_x, cursor_y), Vec2::new(char_size.x, char_size.y));
             // Modern hollow/filled block cursor
-            painter.rect_filled(
-                cursor_rect,
-                1.0,
-                Color32::from_rgba_premultiplied(99, 102, 241, 180),
-            );
+            painter.rect_filled(cursor_rect, 1.0, Color32::from_rgba_premultiplied(99, 102, 241, 180));
         }
 
         // Collect keyboard input if focused
@@ -265,22 +247,22 @@ fn vt_color_to_egui(c: vt100::Color, default: Color32) -> Color32 {
 
 fn ansi_16_color(i: u8) -> Color32 {
     match i {
-        0 => Color32::from_rgb(20, 24, 34),       // Black
-        1 => Color32::from_rgb(239, 68, 68),      // Red
-        2 => Color32::from_rgb(34, 197, 94),      // Green
-        3 => Color32::from_rgb(234, 179, 8),      // Yellow
-        4 => Color32::from_rgb(59, 130, 246),     // Blue
-        5 => Color32::from_rgb(168, 85, 247),     // Magenta
-        6 => Color32::from_rgb(6, 182, 212),      // Cyan
-        7 => Color32::from_rgb(209, 213, 219),    // White
-        8 => Color32::from_rgb(75, 85, 99),       // Bright Black (Gray)
-        9 => Color32::from_rgb(248, 113, 113),    // Bright Red
-        10 => Color32::from_rgb(74, 222, 128),    // Bright Green
-        11 => Color32::from_rgb(250, 204, 21),    // Bright Yellow
-        12 => Color32::from_rgb(96, 165, 250),    // Bright Blue
-        13 => Color32::from_rgb(192, 132, 252),   // Bright Magenta
-        14 => Color32::from_rgb(56, 189, 248),    // Bright Cyan
-        15 => Color32::from_rgb(243, 244, 246),   // Bright White
+        0 => Color32::from_rgb(20, 24, 34),     // Black
+        1 => Color32::from_rgb(239, 68, 68),    // Red
+        2 => Color32::from_rgb(34, 197, 94),    // Green
+        3 => Color32::from_rgb(234, 179, 8),    // Yellow
+        4 => Color32::from_rgb(59, 130, 246),   // Blue
+        5 => Color32::from_rgb(168, 85, 247),   // Magenta
+        6 => Color32::from_rgb(6, 182, 212),    // Cyan
+        7 => Color32::from_rgb(209, 213, 219),  // White
+        8 => Color32::from_rgb(75, 85, 99),     // Bright Black (Gray)
+        9 => Color32::from_rgb(248, 113, 113),  // Bright Red
+        10 => Color32::from_rgb(74, 222, 128),  // Bright Green
+        11 => Color32::from_rgb(250, 204, 21),  // Bright Yellow
+        12 => Color32::from_rgb(96, 165, 250),  // Bright Blue
+        13 => Color32::from_rgb(192, 132, 252), // Bright Magenta
+        14 => Color32::from_rgb(56, 189, 248),  // Bright Cyan
+        15 => Color32::from_rgb(243, 244, 246), // Bright White
         _ => Color32::from_rgb(209, 213, 219),
     }
 }

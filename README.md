@@ -1,124 +1,147 @@
-# ⚡ RusIO
+# RusIO
 
-**RusIO** es un cliente SSH, visor VNC y gestor de terminales locales moderno, ultrarrápido y desarrollado **100% en Rust**.
+**RusIO** (*Rust IO*) es un gestor de conexiones nativo, rápido y escrito 100 % en Rust: terminales SSH y locales,
+explorador SFTP, escritorio remoto VNC y consolas de bases de datos, todo en una sola ventana con pestañas.
 
-Diseñado para administradores de sistemas, desarrolladores y entusiastas de DevOps que buscan una alternativa nativa, liviana y sin el consumo de memoria de clientes basados en Electron.
+El nombre es un guiño a *Input/Output* y a Rucio, un gato.
 
----
+[![Installer](https://github.com/Fiambre/RusIO/actions/workflows/release.yml/badge.svg)](https://github.com/Fiambre/RusIO/actions/workflows/release.yml)
+[![CI](https://github.com/Fiambre/RusIO/actions/workflows/ci.yml/badge.svg)](https://github.com/Fiambre/RusIO/actions/workflows/ci.yml)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#licencia)
 
-## 🚀 Características Principales
+## Instalación
 
-- **Gestor de Conexiones Jerárquico (Sidebar)**:
-  - Organización de conexiones en carpetas y subcarpetas ilimitadas.
-  - Búsqueda y filtrado instantáneo en tiempo real.
-  - Creación, edición, duplicación y eliminación de perfiles.
-  - Badges de colores por protocolo: `[SSH]`, `[LOCAL]`, `[VNC]`.
-  - Persistencia automática en `%APPDATA%/rusio/connections.json`.
+Descarga `RusIO-Setup-<versión>.exe` desde la página de [Releases](https://github.com/Fiambre/RusIO/releases).
+Se instala por usuario, **sin permisos de administrador**, en `%LOCALAPPDATA%\Programs\RusIO`, y crea un acceso
+en el menú Inicio. Al desinstalar no se borran tus conexiones ni tus contraseñas.
 
-- **Soporte Multi-Protocolo**:
-  - **SSH (Remoto)**:
-    - Implementado con `ssh2` nativo.
-    - Autenticación por contraseña, claves privadas (PEM/OpenSSH) con passphrase opcional, o SSH Agent de Windows.
-    - Asignación de PTY `xterm-256color` con soporte de redimensionamiento dinámico.
-  - **Terminales Locales (Windows ConPTY)**:
-    - Implementado con `portable-pty`.
-    - Soporte inmediato para **PowerShell**, **WSL (Linux Bash)**, **CMD** y shells personalizadas.
-    - Entrada/salida asíncrona full duplex en hilo dedicado.
-  - **VNC (Escritorio Remoto)**:
-    - Cliente RFB/VNC integrado.
-    - Renderizado de framebuffer acelerado por hardware a 60 FPS en egui.
-    - Mapeo de eventos de mouse (clic primario, secundario, central) y teclado remoto.
-    - Botón de combinación especial `Ctrl+Alt+Del`.
+> Los instaladores aún no están firmados digitalmente, así que Windows SmartScreen puede mostrar una advertencia
+> la primera vez ("Más información" → "Ejecutar de todos modos").
 
-- **Gestión Avanzada de Pestañas (Tabs)**:
-  - Múltiples sesiones activas simultáneamente en pestañas independientes.
-  - Indicador de estado en tiempo real (🟢 Conectado / 🔴 Desconectado).
-  - Título editable, selector de tamaño de fuente (`-` / `+`), botón de limpieza de pantalla.
-  - Menú desplegable `➕` para abrir rápidamente PowerShell, WSL o conexiones rápidas.
+Por ahora solo se publica para Windows 10/11 (x64). El código no depende de Windows salvo los terminales locales
+(ConPTY), así que otras plataformas son posibles; las contribuciones son bienvenidas.
 
-- **Emulador de Terminal de Alto Rendimiento**:
-  - Basado en el parser `vt100` en Rust.
-  - Paleta ANSI completa de 16 colores, 256 colores y TrueColor (24-bit).
-  - Agrupación inteligente de celdas contiguas (batching) para rendering a alta tasa de refresco.
-  - Cursor interactivo y atajos de teclado estándar (`Ctrl+C`, `Ctrl+D`, `Ctrl+L`, etc.).
+## Características
 
-- **UI Moderna y Minimalista**:
-  - Construido sobre `egui` / `eframe`.
-  - Tema oscuro profesional inspirado en Warp y Termius.
-  - Binario único de menos de 6 MB, sin dependencias externas.
+- **Conexiones organizadas**: carpetas, búsqueda instantánea, iconos configurables por conexión, doble clic para
+  conectar y menú contextual para editar o borrar. Las categorías (Local, Remoto, Bases de datos) guían la
+  pantalla de inicio y el asistente de nueva conexión.
+- **SSH**: terminal `xterm-256color` con autenticación por contraseña, clave privada (con passphrase) o agente.
+- **SFTP**: explorador de archivos con subida y descarga, arrastrar y soltar, creación y borrado, y un editor de
+  texto para archivos remotos.
+- **Túneles y saltos**: cualquier conexión puede alcanzarse *a través de* otra conexión SSH (hasta 5 saltos
+  encadenados), por ejemplo una base de datos tras un bastión.
+- **Terminales locales**: PowerShell, CMD, WSL y Git Bash sobre ConPTY.
+- **VNC**: cliente RFB con ratón, teclado y `Ctrl+Alt+Del`.
+- **Bases de datos**, con una consola SQL común (explorador de esquema, editor con colores, numeración de líneas y
+  autocompletado de tablas y columnas, resultados en cuadrícula, exportación a CSV, formateador `Ctrl+Mayús+F`
+  y cancelación de consultas):
+  - SQLite
+  - PostgreSQL (con selector de base de datos)
+  - MySQL / MariaDB
+  - MongoDB, con sintaxis de shell (`db.coleccion.find({...}).sort({...}).limit(10)`, `aggregate`,
+    `insertOne`, `updateMany`, etc.)
+- **Seguridad**:
+  - Las contraseñas se guardan en el **almacén de credenciales del sistema** (Windows Credential Manager), nunca
+    en `connections.json`.
+  - Las consultas que pueden destruir datos (`DROP`, `TRUNCATE`, `DELETE`/`UPDATE` sin `WHERE`, `deleteMany`…)
+    piden confirmación antes de ejecutarse.
+  - Las conexiones de bases de datos admiten modo de solo lectura.
+- **Interfaz propia**: barra de título personalizada, tema oscuro, barra de estado y ajustes por plugin.
 
----
+## Datos y privacidad
 
-## 🛠 Requisitos y Compilación
+- Las conexiones se guardan en `connections.json` dentro de la carpeta de configuración del usuario
+  (`%APPDATA%\rusio` en Windows). La ubicación se puede cambiar en Ajustes.
+- Las contraseñas y las URI con credenciales no se escriben en ese archivo: van al almacén del sistema, con el
+  servicio `rusio`.
+- RusIO no envía telemetría ni se conecta a ningún servidor que no hayas configurado tú.
 
-### Requisitos
-- Rust 1.80+ (MSVC toolchain en Windows)
-- Cargo
+## Compilar desde el código
 
-### Compilación en Modo Debug
+Requisitos: Rust estable reciente (MSVC en Windows) y, para el instalador, [NSIS](https://nsis.sourceforge.io).
+
 ```powershell
-cargo run
+cargo run                      # modo debug
+cargo build --release          # target/release/rusio.exe
+cargo test --workspace         # pruebas unitarias
 ```
 
-### Compilación en Modo Release (Optimizado)
-```powershell
-cargo build --release
-```
-El ejecutable final se genera en `target/release/rusio.exe` (~5.9 MB).
+Cada plugin es una *feature* de Cargo (`ssh`, `local`, `vnc`, `sqlite`, `postgres`, `mysql`, `mongodb`, todas
+activas por defecto). Para compilar solo algunos:
 
-### Ejecutar Pruebas Unitarias
 ```powershell
-cargo test
+cargo build --release -p rusio --no-default-features --features "ssh,postgres"
 ```
 
----
+Instalador (se genera en `dist/`):
 
-## 📁 Estructura del Proyecto
+```powershell
+makensis -DVERSION=0.1.0 installer/rusio.nsi
+```
 
-RusIO es un workspace de Cargo. La app no conoce ningún protocolo: solo habla con el
-contrato de plugins (`rusio-plugin-api`) y cada protocolo vive en su propio crate.
+Las pruebas contra servidores reales (PostgreSQL, MySQL, MongoDB) se omiten solas salvo que definas
+`RUSIO_PG_TEST`, `RUSIO_MYSQL_TEST` o `RUSIO_MONGO_TEST`; mira `engine.rs` de cada plugin para el formato.
+
+## Arquitectura
+
+RusIO es un workspace de Cargo. La app no conoce ningún protocolo: solo habla con el contrato de plugins
+(`rusio-plugin-api`) y cada protocolo vive en su propio crate.
 
 ```text
 crates/
-├── rusio-core/            # Sin UI: perfiles, ajustes, almacén de credenciales
-├── rusio-plugin-api/      # El contrato (traits Plugin / Session / Host), tema, iconos
-│                          #   el widget de terminal compartido (emulador VT100 + egui) y la grilla de resultados
-#   tabulares (`data::data_grid`) que reutilizará cualquier plugin de base de datos
-├── rusio-plugin-ssh/      # SSH (terminal) + SFTP (explorador y edición remota)
-├── rusio-plugin-local/    # Terminales locales: PowerShell, CMD, WSL, Git Bash
-├── rusio-plugin-vnc/      # Escritorio remoto VNC (RFB)
-├── rusio-plugin-sqlite/   # Bases SQLite: esquema, editor SQL, resultados y export a CSV
-└── rusio-app/             # El binario `rusio`: ventana, pestañas, sidebar, ajustes, editor
+├── rusio-core/             # Sin UI: perfiles, ajustes, almacén de credenciales
+├── rusio-plugin-api/       # El contrato (Plugin / Session / Host), tema, iconos, terminal compartido,
+│                           #   cuadrícula de datos y la consola SQL común (SqlConsole / SqlBackend)
+├── rusio-plugin-ssh/       # SSH (terminal) + SFTP (explorador y edición remota)
+├── rusio-plugin-local/     # Terminales locales: PowerShell, CMD, WSL, Git Bash
+├── rusio-plugin-vnc/       # Escritorio remoto VNC (RFB)
+├── rusio-plugin-sqlite/    # SQLite
+├── rusio-plugin-postgres/  # PostgreSQL
+├── rusio-plugin-mysql/     # MySQL / MariaDB
+├── rusio-plugin-mongodb/   # MongoDB (sintaxis de shell)
+└── rusio-app/              # El binario `rusio`: ventana, pestañas, barra lateral, ajustes, editor
 ```
 
 ### Cómo agregar un plugin
 
 1. Crea `crates/rusio-plugin-<nombre>` con dependencia a `rusio-plugin-api`.
 2. Implementa el trait `Plugin`:
-   - `protocol()` → id (clave en `connections.json`), nombre, badge, color y qué campos de los
-     parámetros son secretos (van al almacén de credenciales, nunca al archivo).
+   - `protocol()` → id (clave en `connections.json`), nombre, badge, categoría, icono (logo SVG o glifo), color
+     y qué campos de los parámetros son secretos (van al almacén de credenciales, nunca al archivo).
    - `default_params()`, `summary()` y `edit_ui()` → los parámetros de conexión viajan como
-     `serde_json::Value`; el plugin los (de)serializa a su propio struct y dibuja su parte del
-     formulario con egui.
-   - `settings_schema()` → ajustes propios; aparecen en la sección del plugin dentro de
-     Configuración y llegan de vuelta en `ConnectRequest::settings`.
-   - `connect()` → devuelve un `Session` que dibuja su propia pestaña (`Session::ui`).
-     Las sesiones pueden pedir al host abrir un archivo en el editor de texto (`Host`).
-   - Túneles (opcional): `ProtocolDef::endpoint` permite que una conexión de ese protocolo se
-     alcance *a través de* una puerta de enlace (el host lee y reescribe su host/puerto);
-     `ProtocolDef::gateway` + `Plugin::open_tunnel()` permiten que el plugin *sea* esa puerta
-     (SSH lo es). Una conexión guarda `via: <id de otra conexión>`; el host encadena hasta
-     5 puertas, abre un túnel por cada una en un hilo aparte y mantiene los túneles abiertos
-     mientras viva la pestaña.
-3. Regístralo en `crates/rusio-app/src/registry.rs` detrás de una *feature* de Cargo
-   (`default = ["ssh", "local", "vnc", "sqlite"]`), así cada build elige qué plugins incluye:
-   `cargo build -p rusio --no-default-features --features ssh`.
+     `serde_json::Value`; el plugin los (de)serializa a su propio struct y dibuja su parte del formulario.
+   - `settings_schema()` → ajustes propios; aparecen en la sección del plugin dentro de Ajustes.
+   - `connect()` → devuelve un `Session` que dibuja su propia pestaña. Las sesiones pueden pedir al host abrir
+     un archivo en el editor de texto.
+   - Túneles (opcional): `ProtocolDef::endpoint` permite que una conexión se alcance *a través de* una puerta de
+     enlace; `ProtocolDef::gateway` + `Plugin::open_tunnel()` permiten que el plugin *sea* esa puerta (SSH lo es).
+3. Para una base de datos basta implementar `SqlBackend` y envolverlo en `SqlConsole`: la consola, el editor, el
+   autocompletado y la exportación vienen incluidos.
+4. Regístralo en `crates/rusio-app/src/registry.rs` detrás de una *feature* de Cargo.
 
-Los plugins entran por pull request al repositorio y se compilan junto con la app: comparten
-proceso y pueden dibujar con egui, y la revisión de código es la barrera de seguridad.
+Los plugins se compilan junto con la app: comparten proceso y pueden dibujar con egui, y la revisión de código
+en los pull requests es la barrera de seguridad. Mira [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Formato de `connections.json`
 
-El protocolo se guarda como `{ "<id del plugin>": { ...parámetros... } }`, el mismo formato
-que usaban las versiones anteriores a los plugins, así que los archivos existentes siguen
-funcionando.
+El protocolo se guarda como `{ "<id del plugin>": { ...parámetros... } }`. Los campos secretos quedan en blanco
+en el archivo y se leen del almacén de credenciales del sistema.
+
+## Créditos y marcas
+
+- Interfaz con [egui](https://github.com/emilk/egui). Las dependencias y sus licencias están en `Cargo.lock`;
+  todas son permisivas y se verifican en CI con `cargo-deny`.
+- Los logos de SQLite, PostgreSQL, MySQL y MongoDB provienen de [Simple Icons](https://simpleicons.org)
+  (licencia CC0). Las marcas pertenecen a sus respectivos dueños y se usan solo para identificar cada tipo de
+  base de datos; RusIO no está afiliado ni respaldado por ellos.
+
+## Licencia
+
+Doble licencia, a tu elección:
+
+- [Apache License 2.0](LICENSE-APACHE)
+- [MIT](LICENSE-MIT)
+
+Salvo que indiques lo contrario, cualquier contribución que envíes para incluirla en RusIO tendrá esa misma doble
+licencia, sin términos adicionales.

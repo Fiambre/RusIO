@@ -38,7 +38,11 @@ fn switch_to_default_desktop() {
         log_debug(&format!("OpenDesktopA returned: {:?}", h));
         if !h.is_null() {
             let res = SetThreadDesktop(h);
-            log_debug(&format!("SetThreadDesktop returned: {}, GetLastError: {}", res, GetLastError()));
+            log_debug(&format!(
+                "SetThreadDesktop returned: {}, GetLastError: {}",
+                res,
+                GetLastError()
+            ));
         }
     }
 }

@@ -11,8 +11,8 @@ use rusio_plugin_api::serde_json;
 use rusio_plugin_api::term::{SharedTerminal, TerminalEmulator, TerminalSession};
 use rusio_plugin_api::theme::Theme;
 use rusio_plugin_api::{
-    setting_i64, Category, ConnectRequest, Connected, Endpoint, Params, Plugin, ProfileAction, ProtocolDef, ProtocolIcon,
-    QuickConnect, SecretField, SettingField, SettingKind, SettingValues, Tunnel, WelcomeCard,
+    setting_i64, Category, ConnectRequest, Connected, Endpoint, Params, Plugin, ProfileAction, ProtocolDef,
+    ProtocolIcon, QuickConnect, SecretField, SettingField, SettingKind, SettingValues, Tunnel, WelcomeCard,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -27,10 +27,7 @@ const ACTION_SFTP: &str = "sftp";
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SshAuth {
     Password(String),
-    KeyFile {
-        path: String,
-        passphrase: Option<String>,
-    },
+    KeyFile { path: String, passphrase: Option<String> },
     Agent,
 }
 
@@ -44,8 +41,7 @@ pub struct SshParams {
 
 impl SshParams {
     fn from_value(v: &Params) -> Result<Self, String> {
-        let mut p: SshParams =
-            serde_json::from_value(v.clone()).map_err(|e| format!("parámetros inválidos: {e}"))?;
+        let mut p: SshParams = serde_json::from_value(v.clone()).map_err(|e| format!("parámetros inválidos: {e}"))?;
         // An empty passphrase (blanked by the secret store) means "none".
         if let SshAuth::KeyFile { passphrase, .. } = &mut p.auth {
             if passphrase.as_deref() == Some("") {
@@ -134,8 +130,14 @@ impl Plugin for SshPlugin {
             badge: "SSH",
             color: Theme::default().accent_ssh,
             secrets: vec![
-                SecretField { tag: "ssh-password", pointer: "/auth/Password" },
-                SecretField { tag: "key-passphrase", pointer: "/auth/KeyFile/passphrase" },
+                SecretField {
+                    tag: "ssh-password",
+                    pointer: "/auth/Password",
+                },
+                SecretField {
+                    tag: "key-passphrase",
+                    pointer: "/auth/KeyFile/passphrase",
+                },
             ],
             quick_connect: Some(QuickConnect {
                 label: "SSH",
@@ -209,7 +211,10 @@ impl Plugin for SshPlugin {
         if kind != before {
             p.auth = match kind {
                 0 => SshAuth::Password(String::new()),
-                1 => SshAuth::KeyFile { path: String::new(), passphrase: None },
+                1 => SshAuth::KeyFile {
+                    path: String::new(),
+                    passphrase: None,
+                },
                 _ => SshAuth::Agent,
             };
         }
@@ -235,11 +240,9 @@ impl Plugin for SshPlugin {
             }
             SshAuth::Agent => {
                 ui.label(
-                    RichText::new(
-                        "Se utilizarán las claves cargadas en el agente SSH de Windows/Pageant.",
-                    )
-                    .size(11.0)
-                    .color(theme.text_secondary),
+                    RichText::new("Se utilizarán las claves cargadas en el agente SSH de Windows/Pageant.")
+                        .size(11.0)
+                        .color(theme.text_secondary),
                 );
             }
         }
@@ -255,19 +258,35 @@ impl Plugin for SshPlugin {
                 key: "connect_timeout_secs",
                 label: "Tiempo de espera de conexión",
                 help: "Segundos que se espera al abrir la conexión (SSH y SFTP).",
-                kind: SettingKind::Int { default: 10, min: 2, max: 120, suffix: " s" },
+                kind: SettingKind::Int {
+                    default: 10,
+                    min: 2,
+                    max: 120,
+                    suffix: " s",
+                },
             },
             SettingField {
                 key: "sftp_keepalive_secs",
                 label: "Keepalive de SFTP y túneles",
-                help: "Cada cuántos segundos se envía un latido para que el servidor no cierre la sesión. 0 lo desactiva.",
-                kind: SettingKind::Int { default: 30, min: 0, max: 300, suffix: " s" },
+                help:
+                    "Cada cuántos segundos se envía un latido para que el servidor no cierre la sesión. 0 lo desactiva.",
+                kind: SettingKind::Int {
+                    default: 30,
+                    min: 0,
+                    max: 300,
+                    suffix: " s",
+                },
             },
             SettingField {
                 key: "sftp_edit_max_mb",
                 label: "Tamaño máximo para editar archivos",
                 help: "Los archivos remotos más grandes no se abren en el editor de texto.",
-                kind: SettingKind::Int { default: 2, min: 1, max: 50, suffix: " MB" },
+                kind: SettingKind::Int {
+                    default: 2,
+                    min: 1,
+                    max: 50,
+                    suffix: " MB",
+                },
             },
         ]
     }
@@ -281,8 +300,7 @@ impl Plugin for SshPlugin {
         match req.action {
             None => {
                 let (cols, rows) = (100u16, 30u16);
-                let emulator: SharedTerminal =
-                    Arc::new(Mutex::new(TerminalEmulator::new(cols, rows)));
+                let emulator: SharedTerminal = Arc::new(Mutex::new(TerminalEmulator::new(cols, rows)));
                 let title = format!("{}@{}:{}", p.username, p.host, p.port);
                 let session = SshSession::connect(
                     p.host,
@@ -311,9 +329,8 @@ impl Plugin for SshPlugin {
             Some(ACTION_SFTP) => {
                 let title = format!("SFTP {}@{}", p.username, p.host);
                 let opts = sftp_options(req.settings);
-                let session =
-                    SftpSession::connect(p.host, p.port, p.username, p.auth, opts, repaint)
-                        .map_err(|e| format!("Error SFTP: {e}"))?;
+                let session = SftpSession::connect(p.host, p.port, p.username, p.auth, opts, repaint)
+                    .map_err(|e| format!("Error SFTP: {e}"))?;
                 Ok(Connected {
                     title,
                     session: Box::new(session),

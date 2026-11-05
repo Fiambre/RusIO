@@ -140,10 +140,22 @@ pub struct SettingField {
 }
 
 pub enum SettingKind {
-    Bool { default: bool },
-    Int { default: i64, min: i64, max: i64, suffix: &'static str },
-    Text { default: &'static str },
-    Choice { default: &'static str, options: &'static [(&'static str, &'static str)] },
+    Bool {
+        default: bool,
+    },
+    Int {
+        default: i64,
+        min: i64,
+        max: i64,
+        suffix: &'static str,
+    },
+    Text {
+        default: &'static str,
+    },
+    Choice {
+        default: &'static str,
+        options: &'static [(&'static str, &'static str)],
+    },
 }
 
 impl SettingKind {

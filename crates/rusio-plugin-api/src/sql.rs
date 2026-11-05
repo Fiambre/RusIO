@@ -197,7 +197,12 @@ impl Session for SqlConsole {
             .size_range(150.0..=400.0)
             .show(ui, |ui| {
                 if !databases.is_empty() {
-                    ui.label(RichText::new("BASE DE DATOS").size(10.0).strong().color(theme.text_muted));
+                    ui.label(
+                        RichText::new("BASE DE DATOS")
+                            .size(10.0)
+                            .strong()
+                            .color(theme.text_muted),
+                    );
                     ui.add_enabled_ui(!st.busy, |ui| {
                         egui::ComboBox::from_id_salt(("sql_db_select", uid))
                             .width(ui.available_width() - 8.0)
@@ -420,10 +425,14 @@ impl Session for SqlConsole {
                     }
                     ui.add_space(6.0);
                     ui.label(
-                        RichText::new(if sql.len() > 300 { format!("{}…", &sql[..sql.floor_char_boundary(300)]) } else { sql.clone() })
-                            .monospace()
-                            .size(11.5)
-                            .color(theme.text_secondary),
+                        RichText::new(if sql.len() > 300 {
+                            format!("{}…", &sql[..sql.floor_char_boundary(300)])
+                        } else {
+                            sql.clone()
+                        })
+                        .monospace()
+                        .size(11.5)
+                        .color(theme.text_secondary),
                     );
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
@@ -433,9 +442,7 @@ impl Session for SqlConsole {
                         {
                             go = true;
                         }
-                        if ui.button("Cancelar").clicked()
-                            || ui.input(|i| i.key_pressed(egui::Key::Escape))
-                        {
+                        if ui.button("Cancelar").clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                             keep_open = false;
                         }
                     });

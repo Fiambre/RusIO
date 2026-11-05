@@ -3,8 +3,8 @@ mod engine;
 
 use engine::{Engine, OpenOptions};
 use rusio_plugin_api::egui::{self, Color32, RichText};
-use rusio_plugin_api::sql::SqlConsole;
 use rusio_plugin_api::serde_json;
+use rusio_plugin_api::sql::SqlConsole;
 use rusio_plugin_api::theme::Theme;
 use rusio_plugin_api::{
     setting_i64, Category, ConnectRequest, Connected, Params, Plugin, ProtocolDef, ProtocolIcon, SettingField,
@@ -104,13 +104,23 @@ impl Plugin for SqlitePlugin {
                 key: "max_rows",
                 label: "Máximo de filas por consulta",
                 help: "Un resultado más grande se corta a este número de filas.",
-                kind: SettingKind::Int { default: 1000, min: 10, max: 100_000, suffix: " filas" },
+                kind: SettingKind::Int {
+                    default: 1000,
+                    min: 10,
+                    max: 100_000,
+                    suffix: " filas",
+                },
             },
             SettingField {
                 key: "busy_timeout_ms",
                 label: "Espera si la base está bloqueada",
                 help: "Cuánto esperar a que otro proceso libere el archivo antes de fallar.",
-                kind: SettingKind::Int { default: 5000, min: 0, max: 60_000, suffix: " ms" },
+                kind: SettingKind::Int {
+                    default: 5000,
+                    min: 0,
+                    max: 60_000,
+                    suffix: " ms",
+                },
             },
         ]
     }
@@ -118,8 +128,7 @@ impl Plugin for SqlitePlugin {
     fn connect(&self, req: &ConnectRequest) -> Result<Connected, String> {
         let p = SqliteParams::from_value(req.params)?;
         let max_rows = setting_i64(req.settings, "max_rows", 1000).clamp(10, 100_000) as usize;
-        let busy_timeout_ms =
-            setting_i64(req.settings, "busy_timeout_ms", 5000).clamp(0, 60_000) as u64;
+        let busy_timeout_ms = setting_i64(req.settings, "busy_timeout_ms", 5000).clamp(0, 60_000) as u64;
 
         let path = Path::new(&p.path);
         let conn = engine::open(
