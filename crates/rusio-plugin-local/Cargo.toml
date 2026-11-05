@@ -1,0 +1,11 @@
+[package]
+name = "rusio-plugin-local"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rusio-plugin-api.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+parking_lot.workspace = true
+portable-pty = "0.9.0"

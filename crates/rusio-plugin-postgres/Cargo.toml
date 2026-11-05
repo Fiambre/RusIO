@@ -1,0 +1,14 @@
+[package]
+name = "rusio-plugin-postgres"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rusio-plugin-api.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+postgres = "0.19"
+postgres-native-tls = "0.5"
+native-tls = "0.2"

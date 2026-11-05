@@ -1,0 +1,35 @@
+[package]
+name = "rusio"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = ["ssh", "local", "vnc", "sqlite", "postgres", "mysql", "mongodb"]
+ssh = ["dep:rusio-plugin-ssh"]
+local = ["dep:rusio-plugin-local"]
+vnc = ["dep:rusio-plugin-vnc"]
+sqlite = ["dep:rusio-plugin-sqlite"]
+postgres = ["dep:rusio-plugin-postgres"]
+mysql = ["dep:rusio-plugin-mysql"]
+mongodb = ["dep:rusio-plugin-mongodb"]
+
+[dependencies]
+eframe.workspace = true
+egui_extras.workspace = true
+rusio-core.workspace = true
+rusio-plugin-api.workspace = true
+rusio-plugin-ssh = { workspace = true, optional = true }
+rusio-plugin-local = { workspace = true, optional = true }
+rusio-plugin-vnc = { workspace = true, optional = true }
+rusio-plugin-sqlite = { workspace = true, optional = true }
+rusio-plugin-postgres = { workspace = true, optional = true }
+rusio-plugin-mysql = { workspace = true, optional = true }
+rusio-plugin-mongodb = { workspace = true, optional = true }
+serde_json.workspace = true
+uuid.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+rfd.workspace = true
+
+[build-dependencies]
+winresource = "0.1.34"

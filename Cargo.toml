@@ -1,17 +1,27 @@
-[package]
-name = "pulento"
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
-eframe = "0.30"
-vt100 = "0.18.1"
-portable-pty = "0.9.0"
-ssh2 = "0.9.6"
+[workspace.dependencies]
+egui = "0.36"
+eframe = { version = "0.36", default-features = false, features = ["accesskit", "default_fonts", "links", "glow", "wayland", "x11"] }
+egui_extras = { version = "0.36", default-features = false, features = ["svg"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order"] }
 uuid = { version = "1.10", features = ["v4", "serde"] }
-dirs = "5.0"
 crossbeam-channel = "0.5"
 parking_lot = "0.12"
-vnc = "0.4.0"
+rfd = "0.15"
+rusio-core = { path = "crates/rusio-core" }
+rusio-plugin-api = { path = "crates/rusio-plugin-api" }
+rusio-plugin-local = { path = "crates/rusio-plugin-local" }
+rusio-plugin-ssh = { path = "crates/rusio-plugin-ssh" }
+rusio-plugin-vnc = { path = "crates/rusio-plugin-vnc" }
+rusio-plugin-sqlite = { path = "crates/rusio-plugin-sqlite" }
+rusio-plugin-postgres = { path = "crates/rusio-plugin-postgres" }
+rusio-plugin-mysql = { path = "crates/rusio-plugin-mysql" }
+rusio-plugin-mongodb = { path = "crates/rusio-plugin-mongodb" }

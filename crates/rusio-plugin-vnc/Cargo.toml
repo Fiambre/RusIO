@@ -1,0 +1,12 @@
+[package]
+name = "rusio-plugin-vnc"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rusio-plugin-api.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+vnc = "0.4.0"

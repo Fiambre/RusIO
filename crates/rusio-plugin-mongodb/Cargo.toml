@@ -1,0 +1,13 @@
+[package]
+name = "rusio-plugin-mongodb"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rusio-plugin-api.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+mongodb = { version = "3", features = ["sync"] }
+json5 = "0.4"

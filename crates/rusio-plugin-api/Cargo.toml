@@ -1,0 +1,15 @@
+[package]
+name = "rusio-plugin-api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+egui.workspace = true
+rusio-core.workspace = true
+serde_json.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+rfd.workspace = true
+vt100 = "0.18.1"
+sqlformat = "0.5.0"
+egui_code_editor = "0.4.2"

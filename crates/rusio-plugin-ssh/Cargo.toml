@@ -1,0 +1,13 @@
+[package]
+name = "rusio-plugin-ssh"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rusio-plugin-api.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+rfd.workspace = true
+ssh2 = "0.9.6"
