@@ -32,6 +32,7 @@ uuid.workspace = true
 crossbeam-channel.workspace = true
 parking_lot.workspace = true
 rfd.workspace = true
+ed25519-dalek = "2"
 ureq = { version = "2", default-features = false, features = ["tls"] }
 
 [build-dependencies]

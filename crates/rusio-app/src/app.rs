@@ -96,6 +96,17 @@ pub struct RusioApp {
     update: Option<crate::updates::UpdateInfo>,
     /// Outcome of a manual "Buscar ahora", shown in Settings.
     update_note: Option<String>,
+    show_update: bool,
+    /// The installer being downloaded and verified.
+    update_job: Option<UpdateJob>,
+    update_error: Option<String>,
+    /// A verified installer to start once the app has closed.
+    install_on_exit: Option<std::path::PathBuf>,
+}
+
+struct UpdateJob {
+    rx: crossbeam_channel::Receiver<Result<std::path::PathBuf, String>>,
+    progress: crate::updates::Progress,
 }
 
 impl RusioApp {
@@ -131,6 +142,10 @@ impl RusioApp {
             update_rx: None,
             update: None,
             update_note: None,
+            show_update: false,
+            update_job: None,
+            update_error: None,
+            install_on_exit: None,
         };
         if app.settings.check_updates {
             app.start_update_check();
@@ -147,6 +162,99 @@ impl RusioApp {
         std::thread::spawn(move || {
             let _ = tx.send(crate::updates::check(env!("CARGO_PKG_VERSION")));
         });
+    }
+
+    /// Window that offers the new version and, on request, downloads, verifies and runs its installer.
+    fn render_update(&mut self, ctx: &egui::Context) {
+        use crossbeam_channel::TryRecvError;
+        if let Some(job) = &self.update_job {
+            match job.rx.try_recv() {
+                Ok(Ok(path)) => {
+                    self.update_job = None;
+                    // The installer is started from `on_exit`, once the window and sessions are closing.
+                    self.install_on_exit = Some(path);
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+                Ok(Err(e)) => {
+                    self.update_job = None;
+                    self.update_error = Some(e);
+                }
+                Err(TryRecvError::Empty) => ctx.request_repaint_after(std::time::Duration::from_millis(100)),
+                Err(TryRecvError::Disconnected) => self.update_job = None,
+            }
+        }
+        if !self.show_update {
+            return;
+        }
+        let Some(info) = self.update.clone() else { return };
+        let theme = Theme::default();
+        let mut open = true;
+        let mut start = false;
+        egui::Window::new("Actualizar RusIO")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+            .default_width(400.0)
+            .show(ctx, |ui| {
+                ui.label(
+                    RichText::new(format!("Versión {} disponible (tienes la {})", info.version, env!("CARGO_PKG_VERSION")))
+                        .strong(),
+                );
+                ui.add_space(6.0);
+                if info.installer.is_some() {
+                    ui.label(
+                        RichText::new(
+                            "Se descarga el instalador, se verifica su firma y RusIO se cierra para instalarlo y \
+                             volver a abrirse. Las sesiones abiertas se cerrarán; tus conexiones y contraseñas no cambian.",
+                        )
+                        .size(12.0)
+                        .color(theme.text_secondary),
+                    );
+                } else {
+                    ui.label(
+                        RichText::new("Esta versión no trae un instalador firmado: descárgala desde GitHub.")
+                            .size(12.0)
+                            .color(theme.text_secondary),
+                    );
+                }
+                if let Some(job) = &self.update_job {
+                    ui.add_space(8.0);
+                    ui.add(egui::ProgressBar::new(job.progress.fraction()).show_percentage());
+                }
+                if let Some(e) = &self.update_error {
+                    ui.add_space(6.0);
+                    ui.label(RichText::new(e).size(12.0).color(theme.status_offline));
+                }
+                ui.add_space(10.0);
+                ui.horizontal(|ui| {
+                    if info.installer.is_some()
+                        && ui
+                            .add_enabled(self.update_job.is_none(), egui::Button::new("Actualizar ahora"))
+                            .clicked()
+                    {
+                        start = true;
+                    }
+                    if ui.button("Ver en GitHub").clicked() {
+                        ui.ctx().open_url(egui::OpenUrl::new_tab(&info.url));
+                    }
+                });
+            });
+        if start {
+            if let Some(installer) = info.installer {
+                self.update_error = None;
+                let progress = crate::updates::Progress::default();
+                let (tx, rx) = crossbeam_channel::bounded(1);
+                let p = progress.clone();
+                std::thread::spawn(move || {
+                    let _ = tx.send(crate::updates::download_installer(&installer, &p));
+                });
+                self.update_job = Some(UpdateJob { rx, progress });
+            }
+        }
+        if !open {
+            self.show_update = false;
+        }
     }
 
     fn poll_update(&mut self, ctx: &egui::Context) {
@@ -583,6 +691,12 @@ fn setting_widget(ui: &mut egui::Ui, plugin_id: &str, field: &SettingField, curr
 }
 
 impl eframe::App for RusioApp {
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        if let Some(path) = self.install_on_exit.take() {
+            let _ = crate::updates::launch_installer(&path);
+        }
+    }
+
     fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = &root.ctx().clone();
         let theme = Theme::default();
@@ -679,6 +793,7 @@ impl eframe::App for RusioApp {
 
         // Status bar (declared before the side panel so it spans the full window width)
         let live_sessions = self.tabs.iter().filter(|t| t.session.is_alive()).count();
+        let mut open_update = false;
         egui::Panel::bottom("status_bar")
             .exact_size(26.0)
             .frame(
@@ -714,10 +829,10 @@ impl eframe::App for RusioApp {
                                     )
                                     .sense(egui::Sense::click()),
                                 )
-                                .on_hover_text("Abrir la página de descarga")
+                                .on_hover_text("Ver y actualizar")
                                 .on_hover_cursor(egui::CursorIcon::PointingHand);
                             if link.clicked() {
-                                ui.ctx().open_url(egui::OpenUrl::new_tab(&up.url));
+                                open_update = true;
                             }
                             ui.separator();
                         }
@@ -737,6 +852,11 @@ impl eframe::App for RusioApp {
                     });
                 });
             });
+
+        if open_update {
+            self.show_update = true;
+            self.update_error = None;
+        }
 
         // Left Panel: Connection Manager with Folders
         egui::Panel::left("sidebar_panel")
@@ -917,6 +1037,7 @@ impl eframe::App for RusioApp {
         }
 
         self.render_settings(ctx);
+        self.render_update(ctx);
 
         // Modals
         if let Some(folder_id) = self.modal_type_picker.take() {

@@ -28,8 +28,31 @@ SetCompressor /SOLID lzma
 
 !define UNKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\RusIO"
 
+; An update is started by RusIO itself and runs while the app is still closing: wait until the
+; old executable can be replaced (a running .exe cannot be deleted), up to ~15 seconds.
+Function WaitForApp
+  StrCpy $0 0
+  loop:
+    ClearErrors
+    IfFileExists "$INSTDIR\rusio.exe" 0 done
+    Delete "$INSTDIR\rusio.exe"
+    IfFileExists "$INSTDIR\rusio.exe" 0 done
+    IntOp $0 $0 + 1
+    IntCmp $0 30 done done 0
+    Sleep 500
+    Goto loop
+  done:
+FunctionEnd
+
+; After a silent (automatic) update, open the app again.
+Function .onInstSuccess
+  IfSilent 0 +2
+  Exec '"$INSTDIR\rusio.exe"'
+FunctionEnd
+
 Section "Install"
   SetOutPath "$INSTDIR"
+  Call WaitForApp
   File "..\target\release\rusio.exe"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 

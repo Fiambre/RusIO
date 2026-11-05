@@ -18,6 +18,18 @@ en el menú Inicio. Al desinstalar no se borran tus conexiones ni tus contraseñ
 > Los instaladores aún no están firmados digitalmente, así que Windows SmartScreen puede mostrar una advertencia
 > la primera vez ("Más información" → "Ejecutar de todos modos").
 
+### Actualizaciones
+
+Al iniciar, RusIO consulta la última release pública de GitHub. Si hay una versión nueva, aparece un aviso en la
+barra de estado; con **Actualizar ahora** descarga el instalador, verifica su firma, se cierra, instala la versión
+nueva y se vuelve a abrir. Las conexiones y contraseñas no se tocan. Se puede desactivar en
+Ajustes → Actualizaciones.
+
+Cada instalador publicado lleva una firma Ed25519 (`RusIO-Setup-<versión>.exe.sig`) hecha por el workflow de
+release con una clave privada que solo existe como secreto del repositorio. La clave pública está dentro de la
+app (`crates/rusio-app/src/updates.rs`): **si la firma no coincide, el instalador no se ejecuta**. Esto protege
+contra un archivo alterado o sustituido en la release, pero no sustituye a una firma de código de Windows.
+
 Por ahora solo se publica para Windows 10/11 (x64). El código no depende de Windows salvo los terminales locales
 (ConPTY), así que otras plataformas son posibles; las contribuciones son bienvenidas.
 
@@ -56,8 +68,8 @@ Por ahora solo se publica para Windows 10/11 (x64). El código no depende de Win
 - Las contraseñas y las URI con credenciales no se escriben en ese archivo: van al almacén del sistema, con el
   servicio `rusio`.
 - RusIO no envía telemetría. Aparte de los servidores que configures tú, solo hace una consulta al iniciar a la
-  API pública de GitHub para saber si hay una versión nueva (no envía datos tuyos, no descarga ni instala nada).
-  Se puede desactivar en Ajustes → Actualizaciones.
+  API pública de GitHub para saber si hay una versión nueva (no envía datos tuyos). Solo descarga e instala algo
+  si tú pulsas **Actualizar ahora**. Se puede desactivar en Ajustes → Actualizaciones.
 
 ## Compilar desde el código
 

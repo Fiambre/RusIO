@@ -15,6 +15,13 @@ imaginas. Intentaré responder en pocos días y avisarte cuando haya una correcc
   en SFTP o en el editor remoto).
 - Fallos en la validación de túneles, saltos SSH o certificados TLS.
 
+## Actualizaciones firmadas
+
+El actualizador solo ejecuta un instalador descargado de `github.com/Fiambre/RusIO/releases` cuya firma Ed25519
+verifica con la clave pública incluida en la app. La clave privada es el secreto `UPDATE_SIGNING_KEY` del
+repositorio. Si sospechas que se filtró, repórtalo por el canal privado de arriba: habrá que rotar la clave y publicar una versión
+nueva con la clave pública cambiada, instalada a mano.
+
 ## Cómo se tratan los secretos
 
 Las contraseñas se guardan en el almacén de credenciales del sistema (servicio `rusio`) y no en
