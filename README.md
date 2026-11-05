@@ -55,7 +55,9 @@ Por ahora solo se publica para Windows 10/11 (x64). El código no depende de Win
   (`%APPDATA%\rusio` en Windows). La ubicación se puede cambiar en Ajustes.
 - Las contraseñas y las URI con credenciales no se escriben en ese archivo: van al almacén del sistema, con el
   servicio `rusio`.
-- RusIO no envía telemetría ni se conecta a ningún servidor que no hayas configurado tú.
+- RusIO no envía telemetría. Aparte de los servidores que configures tú, solo hace una consulta al iniciar a la
+  API pública de GitHub para saber si hay una versión nueva (no envía datos tuyos, no descarga ni instala nada).
+  Se puede desactivar en Ajustes → Actualizaciones.
 
 ## Compilar desde el código
 

@@ -4,6 +4,7 @@ mod registry;
 mod session;
 mod tunnels;
 mod ui;
+mod updates;
 
 use app::RusioApp;
 use eframe::egui;

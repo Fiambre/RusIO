@@ -90,6 +90,12 @@ pub struct RusioApp {
     /// Index into the registry's quick-connect protocols.
     quick_connect_proto: usize,
     status_msg: Option<(String, Instant)>,
+    /// Result of the background check for a newer release.
+    update_rx: Option<crossbeam_channel::Receiver<Result<Option<crate::updates::UpdateInfo>, String>>>,
+    /// A newer release, once found.
+    update: Option<crate::updates::UpdateInfo>,
+    /// Outcome of a manual "Buscar ahora", shown in Settings.
+    update_note: Option<String>,
 }
 
 impl RusioApp {
@@ -104,7 +110,7 @@ impl RusioApp {
             "RusIO iniciado en Full Rust. Listo para conectar."
         };
         let quick = registry.quick_launches();
-        Self {
+        let mut app = Self {
             registry,
             pending: Vec::new(),
             quick,
@@ -122,6 +128,45 @@ impl RusioApp {
             quick_connect_host: String::new(),
             quick_connect_proto: 0,
             status_msg: Some((startup_msg.to_string(), Instant::now())),
+            update_rx: None,
+            update: None,
+            update_note: None,
+        };
+        if app.settings.check_updates {
+            app.start_update_check();
+        }
+        app
+    }
+
+    fn start_update_check(&mut self) {
+        if self.update_rx.is_some() {
+            return;
+        }
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.update_rx = Some(rx);
+        std::thread::spawn(move || {
+            let _ = tx.send(crate::updates::check(env!("CARGO_PKG_VERSION")));
+        });
+    }
+
+    fn poll_update(&mut self, ctx: &egui::Context) {
+        let Some(rx) = &self.update_rx else { return };
+        match rx.try_recv() {
+            Ok(result) => {
+                self.update_rx = None;
+                match result {
+                    Ok(Some(info)) => {
+                        self.update_note = Some(format!("Hay una versión nueva: {}.", info.version));
+                        self.update = Some(info);
+                    }
+                    Ok(None) => self.update_note = Some("Tienes la última versión.".to_string()),
+                    Err(e) => self.update_note = Some(format!("Error al buscar actualizaciones: {e}")),
+                }
+            }
+            Err(crossbeam_channel::TryRecvError::Empty) => {
+                ctx.request_repaint_after(std::time::Duration::from_millis(500))
+            }
+            Err(crossbeam_channel::TryRecvError::Disconnected) => self.update_rx = None,
         }
     }
 
@@ -356,6 +401,34 @@ impl RusioApp {
                             .color(theme.text_muted),
                     );
 
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.add_space(4.0);
+                    ui.label(RichText::new("ACTUALIZACIONES").size(10.0).strong().color(theme.text_muted));
+                    ui.add_space(2.0);
+                    changed |= ui
+                        .checkbox(&mut self.settings.check_updates, "Buscar actualizaciones al iniciar")
+                        .changed();
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(self.update_rx.is_none(), egui::Button::new("Buscar ahora"))
+                            .clicked()
+                        {
+                            self.update_note = None;
+                            self.start_update_check();
+                        }
+                        if self.update_rx.is_some() {
+                            ui.spinner();
+                        } else if let Some(note) = &self.update_note {
+                            ui.label(RichText::new(note).size(11.0).color(theme.text_secondary));
+                        }
+                    });
+                    ui.label(
+                        RichText::new("Solo consulta la última versión publicada en GitHub; no envía datos tuyos ni instala nada.")
+                            .size(11.0)
+                            .color(theme.text_muted),
+                    );
+
                     // One section per plugin that declares settings.
                     for entry in self.registry.entries() {
                         let schema = entry.plugin.settings_schema();
@@ -515,6 +588,7 @@ impl eframe::App for RusioApp {
         let theme = Theme::default();
         titlebar::resize_edges(ctx);
         self.poll_pending(ctx);
+        self.poll_update(ctx);
 
         // Custom title bar: logo, quick connect, window controls
         egui::Panel::top("top_panel")
@@ -630,6 +704,23 @@ impl eframe::App for RusioApp {
                                 .color(theme.text_muted),
                         );
                         ui.separator();
+                        if let Some(up) = &self.update {
+                            let link = ui
+                                .add(
+                                    egui::Label::new(
+                                        RichText::new(format!("Nueva versión {} disponible", up.version))
+                                            .size(11.0)
+                                            .color(theme.accent_primary),
+                                    )
+                                    .sense(egui::Sense::click()),
+                                )
+                                .on_hover_text("Abrir la página de descarga")
+                                .on_hover_cursor(egui::CursorIcon::PointingHand);
+                            if link.clicked() {
+                                ui.ctx().open_url(egui::OpenUrl::new_tab(&up.url));
+                            }
+                            ui.separator();
+                        }
                         ui.label(
                             RichText::new(format!(
                                 "{} {}",

@@ -15,6 +15,8 @@ pub struct Settings {
     pub connections_path: Option<PathBuf>,
     pub terminal_font_size: f32,
     pub editor_font_size: f32,
+    /// Look for a newer release on GitHub when the app starts.
+    pub check_updates: bool,
     /// Per-plugin settings, keyed by protocol id then by the plugin's own setting key.
     pub plugins: BTreeMap<String, Map<String, Value>>,
 }
@@ -25,6 +27,7 @@ impl Default for Settings {
             connections_path: None,
             terminal_font_size: 14.0,
             editor_font_size: 13.0,
+            check_updates: true,
             plugins: BTreeMap::new(),
         }
     }
