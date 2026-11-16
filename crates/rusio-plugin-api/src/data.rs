@@ -46,6 +46,8 @@ pub struct GridState {
     pub selected_row: Option<usize>,
     /// Cell under the last right-click, used by the context menu.
     menu_cell: Option<(usize, usize)>,
+    /// Row that was double-clicked since the owner last took it.
+    pub activated_row: Option<usize>,
 }
 
 const ROW_H: f32 = 22.0;
@@ -140,6 +142,9 @@ pub fn data_grid(ui: &mut egui::Ui, table: &DataTable, state: &mut GridState) {
 
                         if resp.clicked() || resp.secondary_clicked() {
                             state.selected_row = Some(ri);
+                        }
+                        if resp.double_clicked() {
+                            state.activated_row = Some(ri);
                         }
                         if resp.secondary_clicked() {
                             let px = resp.interact_pointer_pos().map_or(0.0, |p| p.x - rect.left());

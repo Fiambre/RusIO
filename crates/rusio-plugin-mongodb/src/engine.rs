@@ -362,7 +362,12 @@ pub fn load_schema(client: &Client, db: &str) -> Result<Vec<SchemaTable>, String
             } else {
                 Vec::new()
             };
-            SchemaTable { name, is_view, columns }
+            SchemaTable {
+                name,
+                is_view,
+                columns,
+                pk: Vec::new(),
+            }
         })
         .collect())
 }

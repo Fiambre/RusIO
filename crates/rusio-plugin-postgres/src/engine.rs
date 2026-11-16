@@ -233,6 +233,15 @@ pub fn run_sql(client: &mut Client, sql: &str, max_rows: usize) -> Result<QueryR
     })
 }
 
+/// Primary-key columns in key order. Avoids `array_position`/`LATERAL` so old servers answer it.
+const PK_SQL: &str = "SELECT n.nspname, c.relname, a.attname \
+    FROM pg_index i JOIN pg_class c ON c.oid = i.indrelid \
+    JOIN pg_namespace n ON n.oid = c.relnamespace \
+    JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY (i.indkey) \
+    WHERE i.indisprimary \
+    ORDER BY n.nspname, c.relname, \
+    (SELECT s FROM generate_series(0, i.indnatts - 1) s WHERE i.indkey[s] = a.attnum)";
+
 /// Tables and views outside the system schemas. Names are `schema.table`, except `public`.
 ///
 /// Reads `pg_catalog` rather than `information_schema`, which hides every table the user has
@@ -270,12 +279,19 @@ pub fn load_schema(client: &mut Client) -> Result<Vec<SchemaTable>, String> {
         ),
     )?;
 
+    // Optional: a failure here only disables row editing.
+    let keys = rows(client, PK_SQL).unwrap_or_default();
+
     let mut by_table: HashMap<(String, String), Vec<(String, String)>> = HashMap::new();
     for c in columns {
         by_table
             .entry((c[0].clone(), c[1].clone()))
             .or_default()
             .push((c[2].clone(), c[3].clone()));
+    }
+    let mut pks: HashMap<(String, String), Vec<String>> = HashMap::new();
+    for k in keys {
+        pks.entry((k[0].clone(), k[1].clone())).or_default().push(k[2].clone());
     }
     Ok(tables
         .into_iter()
@@ -285,6 +301,7 @@ pub fn load_schema(client: &mut Client) -> Result<Vec<SchemaTable>, String> {
                 name: display_name(&t[0], &t[1]),
                 is_view: t[2] == "VIEW",
                 columns: cols,
+                pk: pks.remove(&(t[0].clone(), t[1].clone())).unwrap_or_default(),
             }
         })
         .collect())
@@ -540,6 +557,15 @@ impl SqlBackend for Engine {
     }
     fn select_all_sql(&self, table: &str) -> String {
         select_all_for(&self.names.lock(), table)
+    }
+    fn table_ref(&self, table: &str) -> String {
+        let (schema, name) = self
+            .names
+            .lock()
+            .get(table)
+            .cloned()
+            .unwrap_or_else(|| ("public".to_string(), table.to_string()));
+        format!("{}.{}", quote_ident(&schema), quote_ident(&name))
     }
     fn databases(&self) -> Vec<String> {
         self.dbs.lock().clone()

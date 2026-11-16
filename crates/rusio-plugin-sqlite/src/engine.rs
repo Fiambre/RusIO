@@ -149,19 +149,28 @@ pub fn load_schema(conn: &Connection) -> Result<Vec<SchemaTable>, String> {
     let mut tables = Vec::with_capacity(items.len());
     for (name, kind) in items {
         let mut cols = Vec::new();
+        let mut keys: Vec<(i64, String)> = Vec::new();
         let mut info = conn
             .prepare(&format!("PRAGMA table_info({})", quote_ident(&name)))
             .map_err(|e| e.to_string())?;
         let rows = info
-            .query_map([], |r| Ok((r.get::<_, String>(1)?, r.get::<_, String>(2)?)))
+            .query_map([], |r| {
+                Ok((r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(5)?))
+            })
             .map_err(|e| e.to_string())?;
         for c in rows {
-            cols.push(c.map_err(|e| e.to_string())?);
+            let (col, ty, pk) = c.map_err(|e| e.to_string())?;
+            if pk > 0 {
+                keys.push((pk, col.clone()));
+            }
+            cols.push((col, ty));
         }
+        keys.sort();
         tables.push(SchemaTable {
             name,
             is_view: kind == "view",
             columns: cols,
+            pk: keys.into_iter().map(|(_, c)| c).collect(),
         });
     }
     Ok(tables)

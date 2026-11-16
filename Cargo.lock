@@ -4304,7 +4304,7 @@ dependencies = [
 
 [[package]]
 name = "rusio"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "crossbeam-channel",
  "ed25519-dalek",
@@ -4329,7 +4329,7 @@ dependencies = [
 
 [[package]]
 name = "rusio-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "dirs",
  "keyring",
@@ -4340,7 +4340,7 @@ dependencies = [
 
 [[package]]
 name = "rusio-plugin-api"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "crossbeam-channel",
  "egui",
@@ -4355,7 +4355,7 @@ dependencies = [
 
 [[package]]
 name = "rusio-plugin-local"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "parking_lot",
  "portable-pty",
@@ -4366,7 +4366,7 @@ dependencies = [
 
 [[package]]
 name = "rusio-plugin-mongodb"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "crossbeam-channel",
  "json5",
@@ -4379,7 +4379,7 @@ dependencies = [
 
 [[package]]
 name = "rusio-plugin-mysql"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "crossbeam-channel",
  "mysql",
@@ -4391,7 +4391,7 @@ dependencies = [
 
 [[package]]
 name = "rusio-plugin-postgres"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "crossbeam-channel",
  "native-tls",
@@ -4405,7 +4405,7 @@ dependencies = [
 
 [[package]]
 name = "rusio-plugin-sqlite"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "crossbeam-channel",
  "fallible-iterator 0.3.0",
@@ -4419,7 +4419,7 @@ dependencies = [
 
 [[package]]
 name = "rusio-plugin-ssh"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "crossbeam-channel",
  "parking_lot",
@@ -4432,7 +4432,7 @@ dependencies = [
 
 [[package]]
 name = "rusio-plugin-vnc"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "crossbeam-channel",
  "parking_lot",

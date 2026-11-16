@@ -214,15 +214,28 @@ pub fn load_schema(conn: &mut Conn) -> Result<Vec<SchemaTable>, String> {
         )
         .map_err(|e| e.to_string())?;
 
+    let keys: Vec<(String, String)> = conn
+        .query(
+            "SELECT table_name, column_name FROM information_schema.key_column_usage \
+             WHERE table_schema = DATABASE() AND constraint_name = 'PRIMARY' \
+             ORDER BY table_name, ordinal_position",
+        )
+        .unwrap_or_default();
+
     let mut by_table: HashMap<String, Vec<(String, String)>> = HashMap::new();
     for (t, c, ty) in columns {
         by_table.entry(t).or_default().push((c, ty));
+    }
+    let mut pks: HashMap<String, Vec<String>> = HashMap::new();
+    for (t, c) in keys {
+        pks.entry(t).or_default().push(c);
     }
     Ok(tables
         .into_iter()
         .map(|(name, kind)| SchemaTable {
             columns: by_table.remove(&name).unwrap_or_default(),
             is_view: kind.contains("VIEW"),
+            pk: pks.remove(&name).unwrap_or_default(),
             name,
         })
         .collect())
@@ -445,6 +458,13 @@ impl SqlBackend for Engine {
     }
     fn select_all_sql(&self, table: &str) -> String {
         format!("SELECT * FROM {} LIMIT 100;", quote_ident(table))
+    }
+    fn quote_ident(&self, name: &str) -> String {
+        quote_ident(name)
+    }
+    fn quote_str(&self, value: &str) -> String {
+        // MySQL also treats the backslash as an escape character inside literals.
+        format!("'{}'", value.replace('\\', "\\\\").replace('\'', "''"))
     }
     fn databases(&self) -> Vec<String> {
         self.dbs.lock().clone()
