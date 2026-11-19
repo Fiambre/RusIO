@@ -30,15 +30,21 @@ SetCompressor /SOLID lzma
 
 ; An update is started by RusIO itself and runs while the app is still closing: wait until the
 ; old executable can be replaced (a running .exe cannot be deleted), up to ~15 seconds.
+; A running .exe can be renamed even when it cannot be overwritten, so move it aside; the old
+; process keeps running from the renamed file until it exits.
 Function WaitForApp
+  Delete "$INSTDIR\rusio.exe.old"
   StrCpy $0 0
   loop:
     ClearErrors
     IfFileExists "$INSTDIR\rusio.exe" 0 done
     Delete "$INSTDIR\rusio.exe"
     IfFileExists "$INSTDIR\rusio.exe" 0 done
+    Rename "$INSTDIR\rusio.exe" "$INSTDIR\rusio.exe.old"
+    IfFileExists "$INSTDIR\rusio.exe" 0 done
     IntOp $0 $0 + 1
-    IntCmp $0 30 done done 0
+    ; equal or more -> give up waiting; less -> keep trying
+    IntCmp $0 30 done +1 done
     Sleep 500
     Goto loop
   done:
@@ -72,6 +78,7 @@ SectionEnd
 ; Connections (connections.json) and saved passwords are left untouched on purpose.
 Section "Uninstall"
   Delete "$INSTDIR\rusio.exe"
+  Delete "$INSTDIR\rusio.exe.old"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
   Delete "$SMPROGRAMS\RusIO.lnk"
